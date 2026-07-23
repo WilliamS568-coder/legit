@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
+import PaystackPop from '@paystack/inline-js';
 
 export default function StudentDashboard() {
   const [profile, setProfile] = useState(null);
@@ -19,31 +20,37 @@ export default function StudentDashboard() {
     {
       title: "Registration Fee for Lesson",
       amount: "₦2,000",
+      rawAmount: 2000,
       description: "One-time registration fee required to enroll in the lesson center and set up your student portal profile."
     },
     {
       title: "Lesson Fee",
       amount: "₦10,000",
+      rawAmount: 10000,
       description: "Monthly or termly tuition fee covering all physical/online lectures, CBT practice sessions, and study materials."
     },
     {
       title: "JAMB Registration (Without Mock)",
       amount: "₦12,000",
+      rawAmount: 12000,
       description: "Covers official UTME profile creation, e-PIN vending, and registration processing without the optional mock exam."
     },
     {
       title: "JAMB Registration (With Mock)",
       amount: "₦15,000",
+      rawAmount: 15000,
       description: "Covers official UTME registration plus inclusion for the high-success JAMB Mock examination center booking."
     },
     {
       title: "WAEC Registration (Without Logistics)",
       amount: "₦70,000",
+      rawAmount: 70000,
       description: "Standard WAEC examination registration fee excluding extra logistical or specialized practical dispatch costs."
     },
     {
       title: "NECO Registration (Without Logistics)",
       amount: "₦65,000",
+      rawAmount: 65000,
       description: "Standard NECO examination registration fee excluding logistics and center-specific handling fees."
     }
   ];
@@ -113,33 +120,43 @@ export default function StudentDashboard() {
     setIsModalOpen(true);
   };
 
-  const handlePaystackPayment = async () => {
+  const handlePaystackPayment = () => {
     if (!selectedFee || !profile) return;
     setPaying(true);
 
-    const reference = 'LT-' + Math.floor(Math.random() * 1000000000);
+    const paystack = new PaystackPop();
+    paystack.newTransaction({
+      key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+      email: profile.email,
+      amount: Number(selectedFee.rawAmount) * 100, // Converts Naira to Kobo for Paystack
+      currency: 'NGN',
+      ref: 'LT-' + Math.floor(Math.random() * 1000000000),
+      onSuccess: async (transaction) => {
+        // Automatically runs when the student completes payment on Paystack
+        const { error } = await supabase.from('payments').insert([
+          {
+            student_id: profile.id,
+            fee_title: selectedFee.title,
+            amount: selectedFee.amount,
+            reference: transaction.reference,
+            status: 'Paid'
+          }
+        ]);
 
-    setTimeout(async () => {
-      const { error } = await supabase.from('payments').insert([
-        {
-          student_id: profile.id,
-          fee_title: selectedFee.title,
-          amount: selectedFee.amount,
-          reference: reference,
-          status: 'Paid'
+        if (error) {
+          alert('Payment successful, but failed to save record: ' + error.message);
+        } else {
+          setPaidFees([...paidFees, selectedFee.title]);
+          alert(`Payment verified successfully! Reference: ${transaction.reference}`);
         }
-      ]);
-
-      if (error) {
-        alert('Error saving payment record: ' + error.message);
-      } else {
-        setPaidFees([...paidFees, selectedFee.title]);
-        alert(`Payment successful! Verified by Paystack. Reference: ${reference}`);
+        setPaying(false);
+        setIsModalOpen(false);
+      },
+      onCancel: () => {
+        alert('Payment cancelled.');
+        setPaying(false);
       }
-
-      setPaying(false);
-      setIsModalOpen(false);
-    }, 1500);
+    });
   };
 
   if (loading) {
@@ -280,7 +297,7 @@ export default function StudentDashboard() {
                 disabled={paying}
                 className="w-full sm:flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 rounded-xl text-xs sm:text-sm transition-all shadow-lg cursor-pointer disabled:opacity-50"
               >
-                {paying ? 'Verifying Payment...' : 'Pay with Paystack'}
+                {paying ? 'Connecting to Paystack...' : 'Pay with Paystack'}
               </button>
             </div>
 
