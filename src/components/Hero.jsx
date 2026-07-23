@@ -1,4 +1,5 @@
 // If your logo is saved in src/assets/logo.png (adjust filename as needed)
+import { Link } from 'react-router-dom';
 import logo from '../assets/legit.jpg'; // or your logo path
 
 export default function Hero() {
@@ -33,9 +34,9 @@ export default function Hero() {
 
         {/* Action Buttons */}
         <div className="flex flex-wrap justify-center gap-4 mt-4">
-          <a href="#register" className="bg-yellow-500 hover:bg-yellow-600 text-black font-bold px-8 py-3 rounded-lg transition-all shadow-lg">
+          <Link to="/register" className="bg-yellow-500 hover:bg-yellow-600 text-black font-bold px-8 py-3 rounded-lg transition-all shadow-lg">
             Register Now
-          </a>
+          </Link>
           
         
         </div>
