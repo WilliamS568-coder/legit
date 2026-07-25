@@ -1,6 +1,35 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 export default function ContactFooter() {
+  const location = useLocation();
+  const isHome = location.pathname === '/';
+  
+  const renderLink = (href, children, className) => {
+    const isAnchor = href.startsWith('#');
+    
+    if (isAnchor) {
+      if (isHome) {
+        return (
+          <a href={href} className={className}>
+            {children}
+          </a>
+        );
+      } else {
+        return (
+          <Link to={`/${href}`} className={className}>
+            {children}
+          </Link>
+        );
+      }
+    }
+    
+    return (
+      <Link to={href} className={className}>
+        {children}
+      </Link>
+    );
+  };
+  
   return (
     <footer id="contact" className="bg-neutral-950 text-white border-t border-yellow-500/20 pt-16 pb-8 px-4">
       <div className="max-w-6xl mx-auto grid md:grid-cols-3 gap-12 mb-12">
@@ -49,12 +78,12 @@ export default function ContactFooter() {
         <div>
           <h4 className="text-lg font-bold text-yellow-500 mb-4">Quick Links</h4>
           <ul className="space-y-2 text-sm text-gray-400">
-            <li><Link to="/" className="hover:text-yellow-500 transition-colors">Home</Link></li>
-            <li><Link to="/#about" className="hover:text-yellow-500 transition-colors">About Us</Link></li>
-            <li><Link to="/#services" className="hover:text-yellow-500 transition-colors">Our Services</Link></li>
-            <li><Link to="/gallery" className="hover:text-yellow-500 transition-colors">Photo Gallery</Link></li>
-            <li><Link to="/register" className="hover:text-yellow-500 transition-colors">Student Registration</Link></li>
-            <li><Link to="/contact" className="hover:text-yellow-500 transition-colors">Contact Us</Link></li>
+            <li>{renderLink("/", "Home", "hover:text-yellow-500 transition-colors")}</li>
+            <li>{renderLink("#about", "About Us", "hover:text-yellow-500 transition-colors")}</li>
+            <li>{renderLink("#services", "Our Services", "hover:text-yellow-500 transition-colors")}</li>
+            <li>{renderLink("/gallery", "Photo Gallery", "hover:text-yellow-500 transition-colors")}</li>
+            <li>{renderLink("/register", "Student Registration", "hover:text-yellow-500 transition-colors")}</li>
+            <li>{renderLink("/contact", "Contact Us", "hover:text-yellow-500 transition-colors")}</li>
           </ul>
         </div>
 
@@ -79,7 +108,7 @@ export default function ContactFooter() {
               <svg className="w-5 h-5 text-yellow-500 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
-              <span>legittutors@edu.ng</span>
+              <span> legittutors8@gmail.com</span>
             </li>
           </ul>
         </div>

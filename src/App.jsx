@@ -14,6 +14,8 @@ import GalleryPage from './pages/GalleryPage';
 // Portal & Dashboard Pages
 import Login from './components/Login';
 import Register from './components/register';
+import ForgotPassword from './components/ForgotPassword';
+import UpdatePassword from './components/UpdatePassword';
 import AdminDashboard from './components/AdminDashboard';
 import StudentDashboard from './components/StudentDashboard';
 
@@ -45,6 +47,8 @@ export default function App() {
         {/* Portal Authentication & Dashboards */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/update-password" element={<UpdatePassword />} />
         <Route path="/admin-dashboard" element={<AdminDashboard />} />
         <Route path="/student-dashboard" element={<StudentDashboard />} />
       </Routes>

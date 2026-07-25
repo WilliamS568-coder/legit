@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('students'); // 'students', 'paid', 'content', 'gallery'
+  const [activeTab, setActiveTab] = useState('students'); // 'students', 'paid', 'transactions', 'attendance', 'content', 'gallery'
   const [students, setStudents] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(true);
   
   // Content & Gallery Post States
@@ -17,44 +20,61 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchStudents();
+    fetchAdminData();
   }, []);
 
-  const fetchStudents = async () => {
+  const fetchAdminData = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    
+    // Fetch students/profiles
+    const { data: profilesData, error: profilesError } = await supabase
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      alert('Error fetching students: ' + error.message);
+    if (profilesError) {
+      alert('Error fetching students: ' + profilesError.message);
     } else {
-      setStudents(data || []);
+      setStudents(profilesData || []);
     }
+
+    // Fetch individual payment transaction records
+    const { data: paymentsData, error: paymentsError } = await supabase
+      .from('payments')
+      .select(`
+        *,
+        profiles:student_id (full_name, email)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (paymentsError) {
+      console.error('Error fetching transactions:', paymentsError.message);
+    } else {
+      setTransactions(paymentsData || []);
+    }
+
+    // Fetch attendance records with student profile info
+    const { data: attendanceData, error: attendanceError } = await supabase
+      .from('attendance')
+      .select(`
+        *,
+        profiles:student_id (full_name, email)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (attendanceError) {
+      console.error('Error fetching attendance records:', attendanceError.message);
+    } else {
+      setAttendanceRecords(attendanceData || []);
+    }
+
     setLoading(false);
-  };
-
-  // Function to simulate Paystack verification approval (updates fee status to Paid)
-  const handleMarkAsPaid = async (studentId) => {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ fee_status: 'Paid' })
-      .eq('id', studentId);
-
-    if (error) {
-      alert('Failed to update status: ' + error.message);
-    } else {
-      alert('Student fee status updated to Paid successfully!');
-      fetchStudents();
-    }
   };
 
   const handlePostContent = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     
-    // Assuming you have a 'posts' or 'announcements' table
     const { error } = await supabase
       .from('posts')
       .insert([{ title: postTitle, body: postBody }]);
@@ -73,7 +93,6 @@ export default function AdminDashboard() {
     e.preventDefault();
     setSubmitting(true);
 
-    // Assuming you have a 'gallery' table with columns image_url and caption
     const { error } = await supabase
       .from('gallery')
       .insert([{ image_url: galleryImageUrl, caption: galleryCaption }]);
@@ -90,75 +109,103 @@ export default function AdminDashboard() {
 
   const paidStudents = students.filter(s => s.fee_status === 'Paid');
   const pendingStudents = students.filter(s => s.fee_status !== 'Paid');
+  
+  // Calculate total revenue collected from raw amounts
+  const totalRevenue = transactions.reduce((sum, tx) => sum + Number(tx.raw_amount || 0), 0);
+
+  // Filter attendance records by today or chosen date
+  const todayDateStr = new Date().toISOString().split('T')[0];
+  const todayAttendance = attendanceRecords.filter(rec => rec.date === todayDateStr);
+  const filteredAttendance = attendanceRecords.filter(rec => rec.date === selectedDate);
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
       
       {/* Top Navbar Header */}
-        <header className="bg-neutral-900 border-b border-yellow-500/20 px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-extrabold tracking-wider cursor-pointer" onClick={() => navigate('/')}>
-              LEGIT <span className="text-yellow-500">ADMIN PORTAL</span>
-            </h1>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button 
-              onClick={() => navigate('/contact')}
-              className="text-sm bg-neutral-950 border border-yellow-500/30 hover:bg-yellow-500 hover:text-black text-yellow-500 px-4 py-2 rounded-lg transition-all font-semibold whitespace-nowrap"
-            >
-              Contact Support
-            </button>
-            <button 
-              onClick={async () => { await supabase.auth.signOut(); navigate('/login'); }}
-              className="text-sm bg-neutral-950 border border-yellow-500/30 hover:bg-yellow-500 hover:text-black text-yellow-500 px-4 py-2 rounded-lg transition-all font-semibold whitespace-nowrap"
-            >
-              Logout
-            </button>
-          </div>
-        </header>
+      <header className="bg-neutral-900 border-b border-yellow-500/20 px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-extrabold tracking-wider cursor-pointer" onClick={() => navigate('/')}>
+            LEGIT <span className="text-yellow-500">ADMIN PORTAL</span>
+          </h1>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button 
+            onClick={() => navigate('/contact')}
+            className="text-sm bg-neutral-950 border border-yellow-500/30 hover:bg-yellow-500 hover:text-black text-yellow-500 px-4 py-2 rounded-lg transition-all font-semibold whitespace-nowrap cursor-pointer"
+          >
+            Contact Support
+          </button>
+          <button 
+            onClick={async () => { await supabase.auth.signOut(); navigate('/login'); }}
+            className="text-sm bg-neutral-950 border border-yellow-500/30 hover:bg-yellow-500 hover:text-black text-yellow-500 px-4 py-2 rounded-lg transition-all font-semibold whitespace-nowrap cursor-pointer"
+          >
+            Logout
+          </button>
+        </div>
+      </header>
 
       {/* Main Container */}
-      <div className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+      <div className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
         
         {/* Quick Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="bg-neutral-900 border border-yellow-500/20 p-5 rounded-xl shadow-lg">
             <p className="text-sm text-gray-400">Total Registered</p>
             <p className="text-2xl font-bold text-white mt-1">{students.length}</p>
           </div>
           <div className="bg-neutral-900 border border-yellow-500/20 p-5 rounded-xl shadow-lg">
-            <p className="text-sm text-gray-400">Paid Students</p>
-            <p className="text-2xl font-bold text-yellow-500 mt-1">{paidStudents.length}</p>
+            <p className="text-sm text-gray-400">Total Revenue</p>
+            <p className="text-2xl font-bold text-yellow-500 mt-1">₦{totalRevenue.toLocaleString()}</p>
+          </div>
+          <div className="bg-neutral-900 border border-yellow-500/20 p-5 rounded-xl shadow-lg">
+            <p className="text-sm text-gray-400">Paid Profiles</p>
+            <p className="text-2xl font-bold text-green-400 mt-1">{paidStudents.length}</p>
           </div>
           <div className="bg-neutral-900 border border-yellow-500/20 p-5 rounded-xl shadow-lg">
             <p className="text-sm text-gray-400">Pending Payments</p>
             <p className="text-2xl font-bold text-orange-400 mt-1">{pendingStudents.length}</p>
           </div>
+          <div className="bg-neutral-900 border border-yellow-500/20 p-5 rounded-xl shadow-lg">
+            <p className="text-sm text-gray-400">Present Today</p>
+            <p className="text-2xl font-bold text-blue-400 mt-1">{todayAttendance.length}</p>
+          </div>
         </div>
 
         {/* Tab Navigation Buttons */}
-        <div className="flex flex-wrap gap-2 mb-6 border-b border-neutral-800 pb-4">
+        <div className="flex flex-wrap gap-2 border-b border-neutral-800 pb-4">
           <button 
             onClick={() => setActiveTab('students')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'students' ? 'bg-yellow-500 text-black shadow' : 'bg-neutral-900 text-gray-300 hover:text-yellow-500'}`}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${activeTab === 'students' ? 'bg-yellow-500 text-black shadow' : 'bg-neutral-900 text-gray-300 hover:text-yellow-500'}`}
           >
             All Students ({students.length})
           </button>
           <button 
             onClick={() => setActiveTab('paid')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'paid' ? 'bg-yellow-500 text-black shadow' : 'bg-neutral-900 text-gray-300 hover:text-yellow-500'}`}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${activeTab === 'paid' ? 'bg-yellow-500 text-black shadow' : 'bg-neutral-900 text-gray-300 hover:text-yellow-500'}`}
           >
             Paid Students ({paidStudents.length})
           </button>
           <button 
+            onClick={() => setActiveTab('transactions')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${activeTab === 'transactions' ? 'bg-yellow-500 text-black shadow' : 'bg-neutral-900 text-gray-300 hover:text-yellow-500'}`}
+          >
+            Payment Transactions ({transactions.length})
+          </button>
+          <button 
+            onClick={() => setActiveTab('attendance')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${activeTab === 'attendance' ? 'bg-yellow-500 text-black shadow' : 'bg-neutral-900 text-gray-300 hover:text-yellow-500'}`}
+          >
+            Attendance Logs ({todayAttendance.length} Today)
+          </button>
+          <button 
             onClick={() => setActiveTab('content')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'content' ? 'bg-yellow-500 text-black shadow' : 'bg-neutral-900 text-gray-300 hover:text-yellow-500'}`}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${activeTab === 'content' ? 'bg-yellow-500 text-black shadow' : 'bg-neutral-900 text-gray-300 hover:text-yellow-500'}`}
           >
             Post Content
           </button>
           <button 
             onClick={() => setActiveTab('gallery')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'gallery' ? 'bg-yellow-500 text-black shadow' : 'bg-neutral-900 text-gray-300 hover:text-yellow-500'}`}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${activeTab === 'gallery' ? 'bg-yellow-500 text-black shadow' : 'bg-neutral-900 text-gray-300 hover:text-yellow-500'}`}
           >
             Manage Gallery
           </button>
@@ -171,7 +218,7 @@ export default function AdminDashboard() {
               <h2 className="font-bold text-lg text-yellow-500">
                 {activeTab === 'students' ? 'All Registered Students' : 'Verified Paid Students'}
               </h2>
-              <button onClick={fetchStudents} className="text-xs bg-neutral-950 border border-yellow-500/30 px-3 py-1.5 rounded text-yellow-500 hover:bg-yellow-500 hover:text-black transition-all">
+              <button onClick={fetchAdminData} className="text-xs bg-neutral-950 border border-yellow-500/30 px-3 py-1.5 rounded text-yellow-500 hover:bg-yellow-500 hover:text-black transition-all cursor-pointer">
                 Refresh List
               </button>
             </div>
@@ -188,7 +235,6 @@ export default function AdminDashboard() {
                       <th className="p-4">Full Name</th>
                       <th className="p-4">Email</th>
                       <th className="p-4">Fee Status</th>
-                      <th className="p-4">Actions / Paystack Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-800 text-sm">
@@ -201,17 +247,114 @@ export default function AdminDashboard() {
                             {student.fee_status || 'Pending'}
                           </span>
                         </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: Transactions & Installment Tracker */}
+        {activeTab === 'transactions' && (
+          <div className="bg-neutral-900 border border-yellow-500/20 rounded-2xl shadow-xl overflow-hidden">
+            <div className="p-4 border-b border-neutral-800 flex justify-between items-center">
+              <h2 className="font-bold text-lg text-yellow-500">Student Payment & Installment Transactions</h2>
+              <button onClick={fetchAdminData} className="text-xs bg-neutral-950 border border-yellow-500/30 px-3 py-1.5 rounded text-yellow-500 hover:bg-yellow-500 hover:text-black transition-all cursor-pointer">
+                Refresh Transactions
+              </button>
+            </div>
+
+            {loading ? (
+              <p className="p-6 text-center text-gray-400">Loading payment logs...</p>
+            ) : transactions.length === 0 ? (
+              <p className="p-6 text-center text-gray-400">No payment transactions recorded yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs sm:text-sm">
+                  <thead>
+                    <tr className="border-b border-neutral-800 text-gray-400 uppercase bg-neutral-950">
+                      <th className="p-4">Student Name</th>
+                      <th className="p-4">Fee Title</th>
+                      <th className="p-4">Amount Paid</th>
+                      <th className="p-4">Status / Balance</th>
+                      <th className="p-4">Reference</th>
+                      <th className="p-4">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-800 text-gray-300">
+                    {transactions.map((tx) => (
+                      <tr key={tx.id} className="hover:bg-neutral-950/50">
+                        <td className="p-4 font-semibold text-white">{tx.profiles?.full_name || 'Unknown Student'}</td>
+                        <td className="p-4 text-gray-200">{tx.fee_title}</td>
+                        <td className="p-4 text-yellow-400 font-bold">{tx.amount}</td>
                         <td className="p-4">
-                          {student.fee_status !== 'Paid' ? (
-                            <button 
-                              onClick={() => handleMarkAsPaid(student.id)}
-                              className="bg-yellow-500/10 border border-yellow-500/40 text-yellow-500 hover:bg-yellow-500 hover:text-black px-3 py-1 rounded text-xs font-bold transition-all"
-                            >
-                              Verify & Set Paid
-                            </button>
-                          ) : (
-                            <span className="text-xs text-green-400 font-medium">✓ Verified & Cleared</span>
-                          )}
+                          <span className={`px-2.5 py-1 rounded text-xs font-semibold ${tx.status === 'Paid' ? 'bg-green-500/10 text-green-400 border border-green-500/30' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30'}`}>
+                            {tx.status}
+                          </span>
+                        </td>
+                        <td className="p-4 font-mono text-gray-400 text-xs">{tx.reference}</td>
+                        <td className="p-4 text-gray-400 text-xs">{new Date(tx.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 4: Attendance Management */}
+        {activeTab === 'attendance' && (
+          <div className="bg-neutral-900 border border-yellow-500/20 rounded-2xl shadow-xl overflow-hidden space-y-4">
+            <div className="p-4 border-b border-neutral-800 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+              <div>
+                <h2 className="font-bold text-lg text-yellow-500">Class Attendance Logs</h2>
+                <p className="text-xs text-gray-400">Filter attendance logs by specific session dates.</p>
+              </div>
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <input 
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="bg-neutral-950 border border-yellow-500/30 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-yellow-500"
+                />
+                <button onClick={fetchAdminData} className="text-xs bg-neutral-950 border border-yellow-500/30 px-3 py-1.5 rounded text-yellow-500 hover:bg-yellow-500 hover:text-black transition-all cursor-pointer whitespace-nowrap">
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            {loading ? (
+              <p className="p-6 text-center text-gray-400">Loading attendance records...</p>
+            ) : filteredAttendance.length === 0 ? (
+              <p className="p-6 text-center text-gray-400">No attendance marked for {selectedDate}.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs sm:text-sm">
+                  <thead>
+                    <tr className="border-b border-neutral-800 text-gray-400 uppercase bg-neutral-950">
+                      <th className="p-4">Student Name</th>
+                      <th className="p-4">Email</th>
+                      <th className="p-4">Status</th>
+                      <th className="p-4">Date</th>
+                      <th className="p-4">Check-in Time</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-800 text-gray-300">
+                    {filteredAttendance.map((rec) => (
+                      <tr key={rec.id} className="hover:bg-neutral-950/50">
+                        <td className="p-4 font-semibold text-white">{rec.profiles?.full_name || 'Unknown Student'}</td>
+                        <td className="p-4 text-gray-300">{rec.profiles?.email || 'N/A'}</td>
+                        <td className="p-4">
+                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-500/10 text-green-400 border border-green-500/30">
+                            {rec.status || 'Present'}
+                          </span>
+                        </td>
+                        <td className="p-4 text-gray-300 font-mono text-xs">{rec.date}</td>
+                        <td className="p-4 text-gray-400 text-xs">
+                          {new Date(rec.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </td>
                       </tr>
                     ))}
@@ -222,7 +365,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* TAB 3: Post Content */}
+        {/* TAB 5: Post Content */}
         {activeTab === 'content' && (
           <div className="max-w-xl bg-neutral-900 border border-yellow-500/20 p-6 rounded-2xl shadow-xl">
             <h2 className="font-bold text-lg text-yellow-500 mb-4">Post Announcement or Content</h2>
@@ -252,7 +395,7 @@ export default function AdminDashboard() {
               <button 
                 type="submit" 
                 disabled={submitting}
-                className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold p-3 rounded-lg text-sm transition-all"
+                className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold p-3 rounded-lg text-sm transition-all cursor-pointer"
               >
                 {submitting ? 'Posting...' : 'Publish Content'}
               </button>
@@ -260,7 +403,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* TAB 4: Manage Gallery */}
+        {/* TAB 6: Manage Gallery */}
         {activeTab === 'gallery' && (
           <div className="max-w-xl bg-neutral-900 border border-yellow-500/20 p-6 rounded-2xl shadow-xl">
             <h2 className="font-bold text-lg text-yellow-500 mb-4">Upload Picture to Gallery Section</h2>
@@ -290,7 +433,7 @@ export default function AdminDashboard() {
               <button 
                 type="submit" 
                 disabled={submitting}
-                className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold p-3 rounded-lg text-sm transition-all"
+                className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold p-3 rounded-lg text-sm transition-all cursor-pointer"
               >
                 {submitting ? 'Uploading...' : 'Add to Gallery'}
               </button>

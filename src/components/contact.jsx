@@ -58,6 +58,12 @@ export default function Contact() {
           <p className="text-sm text-gray-400 max-w-lg mx-auto">
             Have questions about admissions, screenings, or platform access? Send us a message and it will route straight to our WhatsApp line.
           </p>
+          <button 
+            onClick={() => navigate('/')}
+            className="mt-4 text-sm bg-neutral-950 border border-yellow-500/30 hover:bg-yellow-500 hover:text-black text-yellow-500 px-6 py-2 rounded-lg transition-all font-semibold cursor-pointer"
+          >
+            ← Back to Home
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -69,7 +75,7 @@ export default function Contact() {
               
               <div>
                 <p className="text-xs text-gray-400 font-medium">Email Support</p>
-                <p className="text-sm text-gray-200 mt-1">support@legittutors.com</p>
+                <p className="text-sm text-gray-200 mt-1"> legittutors8@gmail.com</p>
               </div>
 
               <div>
