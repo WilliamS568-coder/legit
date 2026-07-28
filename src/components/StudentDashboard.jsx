@@ -14,7 +14,12 @@ export default function StudentDashboard() {
   const [customAmount, setCustomAmount] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [paying, setPaying] = useState(false);
-  const [notification, setNotification] = useState(null); // { type: 'success' | 'error' | 'info', message: string }
+  const [notification, setNotification] = useState(null);
+
+  // Program Selection states
+  const [isProgramModalOpen, setIsProgramModalOpen] = useState(false);
+  const [selectedProgramInput, setSelectedProgramInput] = useState('');
+  const [selectedSessionInput, setSelectedSessionInput] = useState('Morning');
 
   // Attendance states
   const [checkingIn, setCheckingIn] = useState(false);
@@ -44,7 +49,7 @@ export default function StudentDashboard() {
       title: "Monthly Lesson Fee",
       amount: "₦10,000",
       rawAmount: 10000,
-      allowCustom: true, // Allows flexible/part-payment
+      allowCustom: true,
       description: "Monthly tuition fee covering all lectures and materials. You can pay in full or enter a custom part-payment amount."
     },
     {
@@ -68,7 +73,7 @@ export default function StudentDashboard() {
       title: "WAEC Registration (Without Logistics)",
       amount: "₦70,000",
       rawAmount: 70000,
-      allowCustom: true, // Allowed for installment savings towards WAEC
+      allowCustom: true,
       description: "Standard WAEC examination registration fee. You can pay in installments using custom amounts."
     },
     {
@@ -85,9 +90,8 @@ export default function StudentDashboard() {
     fetchStudentData();
   }, []);
 
-  // Lock body scroll when modal is open
   useEffect(() => {
-    if (isModalOpen) {
+    if (isModalOpen || isProgramModalOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -95,7 +99,7 @@ export default function StudentDashboard() {
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [isModalOpen]);
+  }, [isModalOpen, isProgramModalOpen]);
 
   const fetchStudentData = async () => {
     setLoading(true);
@@ -113,7 +117,12 @@ export default function StudentDashboard() {
       .eq('id', user.id)
       .single();
 
-    if (profileData) setProfile(profileData);
+    if (profileData) {
+      setProfile(profileData);
+      if (!profileData.selected_program) {
+        setIsProgramModalOpen(true);
+      }
+    }
 
     const { data: paymentsData } = await supabase
       .from('payments')
@@ -139,7 +148,6 @@ export default function StudentDashboard() {
 
     if (galleryData) setGallery(galleryData);
 
-    // Check if student already marked attendance for today
     const today = new Date().toISOString().split('T')[0];
     const { data: attendanceData } = await supabase
       .from('attendance')
@@ -154,6 +162,31 @@ export default function StudentDashboard() {
     }
 
     setLoading(false);
+  };
+
+  const handleSaveProgram = async () => {
+    if (!selectedProgramInput) {
+      showNotification('error', 'Please select a program.');
+      return;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const fullProgramString = `${selectedProgramInput} (${selectedSessionInput} Session)`;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ selected_program: fullProgramString })
+      .eq('id', user.id);
+
+    if (error) {
+      showNotification('error', 'Failed to save program: ' + error.message);
+    } else {
+      showNotification('success', 'Program selected successfully!');
+      setProfile(prev => ({ ...prev, selected_program: fullProgramString }));
+      setIsProgramModalOpen(false);
+    }
   };
 
   const handleMarkAttendance = async () => {
@@ -190,7 +223,7 @@ export default function StudentDashboard() {
 
   const handleApplyClick = (fee) => {
     setSelectedFee(fee);
-    setCustomAmount(fee.rawAmount.toString()); // Default to full amount
+    setCustomAmount(fee.rawAmount.toString());
     setIsModalOpen(true);
   };
 
@@ -215,7 +248,7 @@ export default function StudentDashboard() {
     paystack.newTransaction({
       key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
       email: profile.email,
-      amount: amountToPay * 100, // Convert to kobo
+      amount: amountToPay * 100,
       currency: 'NGN',
       ref: 'LT-' + Math.floor(Math.random() * 1000000000),
       onSuccess: async (transaction) => {
@@ -238,7 +271,7 @@ export default function StudentDashboard() {
           showNotification('error', 'Payment successful, but failed to record in database: ' + error.message);
         } else {
           showNotification('success', `Payment verified successfully! Reference: ${transaction.reference}`);
-          fetchStudentData(); // Refresh history
+          fetchStudentData();
         }
         setPaying(false);
         setIsModalOpen(false);
@@ -250,7 +283,6 @@ export default function StudentDashboard() {
     });
   };
 
-  // Calculate total paid per fee title to evaluate status
   const getFeeStats = (feeTitle, totalRaw) => {
     const feeRecords = paymentsHistory.filter(p => p.fee_title === feeTitle);
     const totalPaid = feeRecords.reduce((sum, item) => sum + Number(item.raw_amount || 0), 0);
@@ -300,6 +332,10 @@ export default function StudentDashboard() {
               Welcome back, <span className="text-yellow-500 whitespace-nowrap">{profile?.full_name || 'Student'}</span>!
             </h2>
             <p className="text-xs sm:text-sm text-gray-400">Manage monthly lesson dues, view announcements, and track installment payments.</p>
+          </div>
+          <div className="bg-neutral-950 border border-yellow-500/20 px-4 py-2.5 rounded-xl text-xs sm:text-sm">
+            <span className="text-gray-400">Applied Program: </span>
+            <span className="text-yellow-400 font-bold">{profile?.selected_program || 'Not Selected'}</span>
           </div>
         </div>
 
@@ -375,7 +411,7 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        {/* Payment History Section (Monthly Tracking) */}
+        {/* Payment History Section */}
         <div className="space-y-4">
           <h3 className="text-base sm:text-lg font-bold text-yellow-500 border-b border-neutral-800 pb-2">Your Payment History & Monthly Breakdown</h3>
           {paymentsHistory.length === 0 ? (
@@ -462,6 +498,70 @@ export default function StudentDashboard() {
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* First-Time Program Selection Modal (Scrollable for mobile responsiveness) */}
+      {isProgramModalOpen && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+          <div className="bg-neutral-900 border border-yellow-500/40 rounded-3xl max-w-md w-full p-5 sm:p-8 space-y-5 shadow-2xl my-auto max-h-[90vh] overflow-y-auto">
+            
+            <div className="space-y-1.5 text-center">
+              <h3 className="text-lg sm:text-2xl font-extrabold text-white">What are you applying for?</h3>
+              <p className="text-xs sm:text-sm text-gray-400">Please choose your primary tutorial package and session to complete your profile setup.</p>
+            </div>
+
+            <div className="space-y-2.5">
+              {['JAMB Lesson', 'NECO Tutorial', 'WAEC Tutorial', 'JAMB & WAEC Combo'].map((prog) => (
+                <label 
+                  key={prog} 
+                  className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
+                    selectedProgramInput === prog 
+                      ? 'bg-yellow-500/10 border-yellow-500 text-yellow-400 font-bold' 
+                      : 'bg-neutral-950 border-neutral-800 text-gray-300 hover:border-yellow-500/50'
+                  }`}
+                >
+                  <input 
+                    type="radio" 
+                    name="userProgram" 
+                    value={prog}
+                    checked={selectedProgramInput === prog}
+                    onChange={(e) => setSelectedProgramInput(e.target.value)}
+                    className="accent-yellow-500"
+                  />
+                  <span className="text-xs sm:text-sm">{prog}</span>
+                </label>
+              ))}
+            </div>
+
+            {/* Session Selection (Morning / Night) */}
+            <div className="space-y-2 pt-2 border-t border-neutral-800">
+              <label className="text-xs font-semibold text-yellow-500">Choose Session:</label>
+              <div className="grid grid-cols-2 gap-2.5">
+                {['Morning', 'Evening'].map((session) => (
+                  <button
+                    key={session}
+                    type="button"
+                    onClick={() => setSelectedSessionInput(session)}
+                    className={`py-2.5 rounded-xl border text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                      selectedSessionInput === session
+                        ? 'bg-yellow-500 border-yellow-500 text-black shadow-lg'
+                        : 'bg-neutral-950 border-neutral-800 text-gray-400 hover:border-yellow-500/50'
+                    }`}
+                  >
+                    {session} Session
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button 
+              onClick={handleSaveProgram}
+              className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 rounded-xl text-xs sm:text-sm transition-all shadow-lg cursor-pointer"
+            >
+              Confirm & Continue
             </button>
           </div>
         </div>
