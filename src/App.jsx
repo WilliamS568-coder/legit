@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { PushNotifications } from '@capacitor/push-notifications';
 import { App as CapApp } from '@capacitor/app';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
@@ -50,27 +49,11 @@ export default function App() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    checkAndSendWelcomeNotification();
-
-    // Safely handle push notifications with a try/catch to prevent app crashes
+    // Safe web-based notification helper
     try {
-      PushNotifications.requestPermissions().then(result => {
-        if (result.receive === 'granted') {
-          PushNotifications.register();
-        }
-      }).catch(err => {
-        console.log('Push permission error: ', err);
-      });
-
-      PushNotifications.addListener('pushNotificationReceived', (notification) => {
-        console.log('Push received: ', notification);
-      });
-
-      PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-        console.log('Push action performed: ', notification);
-      });
+      checkAndSendWelcomeNotification();
     } catch (e) {
-      console.log('Notifications not supported in this environment', e);
+      console.log('Notification helper error:', e);
     }
 
     return () => {
