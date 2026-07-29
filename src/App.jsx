@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
+import { PushNotifications } from '@capacitor/push-notifications';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import About from './components/About';
@@ -42,6 +43,23 @@ export default function App() {
   useEffect(() => {
     // Triggers welcome notification on first launch
     checkAndSendWelcomeNotification();
+
+    // Request permissions and register for Capacitor Push Notifications
+    PushNotifications.requestPermissions().then(result => {
+      if (result.receive === 'granted') {
+        PushNotifications.register();
+      }
+    });
+
+    // Listen for incoming notifications when app is active
+    PushNotifications.addListener('pushNotificationReceived', (notification) => {
+      console.log('Push received: ', notification);
+    });
+
+    // Listen for when a user clicks/taps on a notification
+    PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+      console.log('Push action performed: ', notification);
+    });
   }, []);
 
   return (
