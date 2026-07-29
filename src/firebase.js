@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyD0HC-NvF002ojwhqhi7mXFmGbUlog7Xhw",
+  apiKey: "AIzaSyD0HC-NvFOO2ojwhqhi7mxfmGbUlog7Xhw",
   authDomain: "legit-tutots.firebaseapp.com",
   projectId: "legit-tutots",
   storageBucket: "legit-tutots.firebasestorage.app",
