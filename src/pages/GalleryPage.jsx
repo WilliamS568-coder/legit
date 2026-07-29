@@ -7,6 +7,7 @@ import flyerImg from '../assets/flyer.jpg';
 import GalleryVid from '../assets/galleryVid.mp4';
 import legitImg from '../assets/legit.jpg';
 import destiny from '../assets/destiny.jpg';
+import mrlegit from '../assets/image.jpg'
 import Elijah from '../assets/Elijah.jpg';
 import gallery1 from '../assets/gallery1.jpg';
 import gallery2 from '../assets/gallery2.jpg';
@@ -34,6 +35,7 @@ export default function GalleryPage() {
     { title: "Elijah (Merlin)", type: "image", src: Elijah, category: "Classroom" },
     { title: "Mr Moses (CEO OF LEGIT)", type: "image", src: MRMoses, category: "Management" },
     { title: "Destiny", type: "image", src: destiny, category: "Classroom" },
+      { title: "Mr&Mrs Legit", type: "image", src: mrlegit, category: "Classroom" },
     { title: "Tutorial Walkthrough", type: "video", src: tutorialVideo, category: "Videos" },
     { title: "Center Activities 1", type: "image", src: gallery1, category: "Classroom" },
     { title: "Center Activities 2", type: "image", src: gallery2, category: "Classroom" },

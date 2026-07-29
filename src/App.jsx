@@ -1,8 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { App as CapApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
+import { PushNotifications } from '@capacitor/push-notifications';
 import { getToken, onMessage } from 'firebase/messaging';
 import { messaging } from './firebase';
+
+// Register service worker for Firebase Cloud Messaging
+if ('serviceWorker' in navigator && !Capacitor.isNativePlatform()) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/firebase-messaging-sw.js')
+      .then((registration) => {
+        console.log('✅ Service Worker registered:', registration.scope);
+      })
+      .catch((error) => {
+        console.error('❌ Service Worker registration failed:', error);
+      });
+  });
+}
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import About from './components/About';
@@ -51,34 +66,108 @@ export default function App() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    checkAndSendWelcomeNotification();
-
-    // Request Web Notification Permission & Get Token
+    // Request Notification Permission & Get Token (Handles Web and Native Capacitor)
     const setupNotifications = async () => {
       try {
-        if (messaging) {
-          const permission = await Notification.requestPermission();
-          if (permission === 'granted') {
-            const token = await getToken(messaging, {
-              vapidKey: "BFmWC7G2itysze-j2QKw799fltqQkiFmRhnE2k-Met2b-tNjT-B8hTY55Cv8EoAMPOgpGrjD6nL8syK0gf280lE"
-            });
-            console.log('FCM Device Token:', token);
-          } else {
-            console.log('Notification permission denied.');
+        if (Capacitor.isNativePlatform()) {
+          console.log('📱 Setting up native push notifications...');
+          
+          // Request permission first
+          let permStatus = await PushNotifications.checkPermissions();
+          console.log('Current permission status:', permStatus);
+
+          if (permStatus.receive !== 'granted') {
+            permStatus = await PushNotifications.requestPermissions();
+            console.log('Requested permission result:', permStatus);
+          }
+
+          if (permStatus.receive !== 'granted') {
+            console.log('❌ User denied native push notification permission.');
+            alert('Please enable notifications in your device settings to receive study reminders.');
+            return;
+          }
+
+          console.log('✅ Native notification permission granted');
+
+          // Register for push notifications
+          await PushNotifications.register();
+          console.log('✅ Push notifications registered');
+
+          // Listen for registration success
+          PushNotifications.addListener('registration', (token) => {
+            console.log('✅ Native push registration token:', token.value);
+          });
+
+          // Listen for registration errors
+          PushNotifications.addListener('registrationError', (error) => {
+            console.error('❌ Error on native push registration:', JSON.stringify(error));
+          });
+
+          // Listen for incoming notifications
+          PushNotifications.addListener('pushNotificationReceived', (notification) => {
+            console.log('📬 Notification received:', notification);
+            alert(`${notification.title || 'Notification'}: ${notification.body || ''}`);
+          });
+
+          // Listen for notification tap
+          PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+            console.log('🔔 Notification tapped:', notification);
+          });
+
+          console.log('✅ Native push notifications setup complete');
+        } else {
+          // Web Browser Firebase Messaging Setup
+          console.log('🌐 Setting up web push notifications...');
+          
+          if (messaging) {
+            // Request permission
+            const permission = await Notification.requestPermission();
+            console.log('Notification permission status:', permission);
+
+            if (permission === 'granted') {
+              const token = await getToken(messaging, {
+                vapidKey: "BFmWC7G2itysze-j2QKw799fltqQkiFmRhnE2k-Met2b-tNjT-B8hTY55Cv8EoAMPOgpGrjD6nL8syK0gf280lE"
+              });
+              
+              if (token) {
+                console.log('✅ FCM Device Token:', token);
+              } else {
+                console.log('⚠️ No FCM token received');
+              }
+
+              // Send welcome notification after permission is granted
+              console.log('🎉 Sending welcome notification...');
+              try {
+                await checkAndSendWelcomeNotification();
+                console.log('✅ Welcome notification function completed');
+              } catch (error) {
+                console.error('❌ Welcome notification function failed:', error);
+              }
+            } else {
+              console.log('❌ Notification permission denied.');
+              alert('Please enable notifications in your browser settings to receive study reminders.');
+            }
           }
         }
       } catch (error) {
-        console.log('Notification setup error:', error);
+        console.error('❌ Notification setup error:', error);
       }
     };
 
-    setupNotifications();
+    // Setup notifications on app start
+    setupNotifications().then(() => {
+      console.log('✅ Notification setup completed');
+    }).catch((error) => {
+      console.error('❌ Notification setup failed:', error);
+    });
 
-    // Listen for incoming foreground messages
-    if (messaging) {
+    // Listen for incoming foreground messages on web
+    if (!Capacitor.isNativePlatform() && messaging) {
       onMessage(messaging, (payload) => {
-        console.log('Message received in foreground: ', payload);
-        alert(`${payload.notification?.title || 'Notification'}: ${payload.notification?.body || ''}`);
+        console.log('📨 Message received in foreground:', payload);
+        const title = payload.notification?.title || 'Notification';
+        const body = payload.notification?.body || '';
+        alert(`${title}: ${body}`);
       });
     }
 

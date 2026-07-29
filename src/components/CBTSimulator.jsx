@@ -2,295 +2,425 @@ import React, { useState } from 'react';
 
 const API_TOKEN = 'ALOC-4f56e66ca205556ccddc';
 
+const SUBJECTS = [
+  'English',
+  'Mathematics',
+  'Physics',
+  'Chemistry',
+  'Biology',
+  'Economics',
+  'Government',
+  'Literature-in-English',
+  'CRS',
+  'Accounting',
+  'Commerce',
+  'Geography',
+  'History',
+  'Agricultural Science'
+];
+
+const YEARS = [
+  2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015,
+  2014, 2013, 2012, 2011, 2010, 2009, 2008, 2007, 2006, 2005
+];
+
+const QUESTION_COUNTS = [5, 10, 20, 40];
+const OPTION_LETTERS = ['a', 'b', 'c', 'd'];
+
+function toPlainText(value) {
+  if (value == null) return '';
+
+  // Deliberately render API content as text, never as executable HTML.
+  return String(value)
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function formatMathText(value) {
+  return toPlainText(value)
+    .replace(/([A-Za-z0-9])\^2/g, '$1²')
+    .replace(/([A-Za-z0-9])\^3/g, '$1³')
+    .replace(/\bpi\b/gi, 'π');
+}
+
+function normalizeAnswer(value) {
+  const answer = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^option[_\s-]?/, '');
+
+  const match = answer.match(/[a-d]/);
+  return match ? match[0] : '';
+}
+
+function normalizeOptions(question) {
+  let source = question.option;
+
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch {
+      source = null;
+    }
+  }
+
+  if (!source || typeof source !== 'object') {
+    source = {
+      a: question.option_a,
+      b: question.option_b,
+      c: question.option_c,
+      d: question.option_d
+    };
+  }
+
+  return Object.entries(source).reduce((options, [key, value]) => {
+    const normalizedKey = normalizeAnswer(key);
+    if (OPTION_LETTERS.includes(normalizedKey) && value) {
+      options[normalizedKey] = formatMathText(value);
+    }
+    return options;
+  }, {});
+}
+
 export default function CBTSimulator({ onClose }) {
   const [selectedSubject, setSelectedSubject] = useState(null);
+  const [selectedYear, setSelectedYear] = useState(null);
   const [questionCount, setQuestionCount] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showReview, setShowReview] = useState(false);
 
-  const fetchQuestions = async (subject, count) => {
+  const resetQuiz = () => {
+    setSelectedSubject(null);
+    setSelectedYear(null);
+    setQuestionCount(null);
+    setQuestions([]);
+    setLoading(false);
+    setError('');
+    setCurrentIdx(0);
+    setSelectedAnswers({});
+    setIsSubmitted(false);
+    setShowReview(false);
+  };
+
+  const closeSimulator = () => {
+    resetQuiz();
+    onClose?.();
+  };
+
+  const fetchQuestions = async (subject, year, count) => {
     setLoading(true);
+    setError('');
+    setQuestions([]);
+    setCurrentIdx(0);
+    setSelectedAnswers({});
+    setIsSubmitted(false);
+    setShowReview(false);
+
     try {
+      const params = new URLSearchParams({
+        subject: subject.toLowerCase(),
+        year: String(year),
+        type: 'utme',
+        random: 'true'
+      });
       const response = await fetch(
-        `https://questions.aloc.com.ng/api/v2/m/${count}?subject=${subject.toLowerCase()}&type=utme&random=true`,
+        'https://questions.aloc.com.ng/api/v2/m/' + count + '?' + params.toString(),
         {
           method: 'GET',
           headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'AccessToken': API_TOKEN
+            Accept: 'application/json',
+            AccessToken: API_TOKEN
           }
         }
       );
-      const data = await response.json();
-      
-      if (data && data.data) {
-        const formatted = data.data.map((q) => {
-          let opts = {};
-          if (q.option) {
-            opts = q.option;
-          } else {
-            opts = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
-          }
 
-          return {
-            id: q.id,
-            section: q.section || q.passage || null,
-            question: q.question,
-            options: opts,
-            answer: q.answer ? q.answer.trim().toLowerCase() : '',
-            explanation: q.solution || "No explanation provided."
-          };
-        });
-        setQuestions(formatted);
+      if (!response.ok) {
+        throw new Error(
+          response.status === 401 || response.status === 403
+            ? 'The questions service rejected the request.'
+            : 'Could not load questions. Please try again.'
+        );
       }
-    } catch (error) {
-      console.error('Failed to fetch questions:', error);
+
+      const data = await response.json();
+      if (!data?.data) {
+        throw new Error('No questions were returned for this selection. Choose another year or try again.');
+      }
+
+      const rawQuestions = Array.isArray(data.data) ? data.data : [data.data];
+
+      const formattedQuestions = rawQuestions
+        .map((question, index) => ({
+          id: question.id || 'question-' + index,
+          section: formatMathText(question.section || question.passage),
+          instruction: formatMathText(question.instruction),
+          question: formatMathText(question.question),
+          options: normalizeOptions(question),
+          answer: normalizeAnswer(question.answer),
+          explanation: formatMathText(question.solution || 'No explanation provided.')
+        }))
+        .filter((question) => question.question && Object.keys(question.options).length > 0);
+
+      if (formattedQuestions.length === 0) {
+        throw new Error('No usable questions were returned for this selection. Choose another year or try again.');
+      }
+
+      setQuestions(formattedQuestions);
+    } catch (requestError) {
+      console.error('Failed to fetch questions:', requestError);
+      setError(requestError.message || 'Unable to load questions. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSubjectSelect = (subject) => {
-    setSelectedSubject(subject);
-  };
-
   const handleCountSelect = (count) => {
     setQuestionCount(count);
-    fetchQuestions(selectedSubject, count);
+    fetchQuestions(selectedSubject, selectedYear, count);
   };
 
   const handleSelect = (optionLetter) => {
-    setSelectedAnswers({ ...selectedAnswers, [currentIdx]: optionLetter.toLowerCase() });
+    setSelectedAnswers((previous) => ({
+      ...previous,
+      [currentIdx]: optionLetter
+    }));
   };
 
-  const handleSubmit = () => {
-    setIsSubmitted(true);
-  };
-
-  const calculateScore = () => {
-    let score = 0;
-    questions.forEach((q, idx) => {
-      const userChoice = selectedAnswers[idx];
-      if (userChoice && userChoice === q.answer) {
-        score++;
-      }
-    });
-    return score;
-  };
-
-  // Advanced formatting to clean up math symbols, superscripts, and html tags
-  const formatMathText = (text) => {
-    if (!text) return '';
-    
-    // Replace standard text representations with proper HTML tags if missing
-    let formatted = text
-      .replace(/(\b[A-Za-z0-9])\^2/g, '$1<sup>2</sup>')
-      .replace(/(\b[A-Za-z0-9])\^3/g, '$1<sup>3</sup>')
-      .replace(/pi/gi, 'π');
-
-    return formatted;
-  };
+  const score = questions.reduce(
+    (total, question, index) => total + (selectedAnswers[index] === question.answer ? 1 : 0),
+    0
+  );
+  const percentage = questions.length ? Math.round((score / questions.length) * 100) : 0;
+  const currentQuestion = questions[currentIdx];
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-85 flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
-      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-3xl p-4 sm:p-6 text-white shadow-2xl flex flex-col my-auto max-h-[92vh]">
-        
-        {/* Header */}
-        <div className="flex justify-between items-center pb-3 border-b border-neutral-800 mb-4 shrink-0">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black bg-opacity-85 p-3 sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="cbt-title"
+    >
+      <div className="my-auto flex max-h-[92vh] w-full max-w-3xl flex-col rounded-2xl border border-neutral-800 bg-neutral-900 p-4 text-white shadow-2xl sm:p-6">
+        <div className="mb-4 flex shrink-0 items-center justify-between border-b border-neutral-800 pb-3">
           <div>
-            <h3 className="text-base sm:text-lg font-bold text-yellow-500">JAMB CBT Live Practice</h3>
-            <p className="text-[11px] sm:text-xs text-neutral-400">Computer Based Test Simulator</p>
+            <h3 id="cbt-title" className="text-base font-bold text-yellow-500 sm:text-lg">
+              JAMB CBT Live Practice
+            </h3>
+            <p className="text-[11px] text-neutral-400 sm:text-xs">Computer Based Test Simulator</p>
           </div>
-          <button onClick={onClose} className="text-neutral-400 hover:text-white font-bold text-xl px-2">✕</button>
+          <button
+            type="button"
+            onClick={closeSimulator}
+            aria-label="Close practice simulator"
+            className="px-2 text-xl font-bold text-neutral-400 hover:text-white"
+          >
+            ×
+          </button>
         </div>
 
-        {/* Step 1: Subject Selection */}
         {!selectedSubject ? (
-          <div className="py-4 sm:py-6 text-center overflow-y-auto pr-1">
-            <h4 className="text-lg sm:text-xl font-semibold mb-2">Select a Subject</h4>
-            <p className="text-xs sm:text-sm text-neutral-400 mb-4">Choose a subject to start your practice test:</p>
-            <div className="grid grid-cols-1 gap-3 max-w-md mx-auto">
-              {['English', 'Mathematics', 'Physics', 'Chemistry', 'Biology'].map((subj) => (
+          <div className="overflow-y-auto py-4 pr-1 text-center sm:py-6">
+            <h4 className="mb-2 text-lg font-semibold sm:text-xl">Select a Subject</h4>
+            <p className="mb-4 text-xs text-neutral-400 sm:text-sm">Choose any JAMB subject to start your practice test:</p>
+            <div className="mx-auto grid max-w-xl grid-cols-2 gap-3 sm:grid-cols-3">
+              {SUBJECTS.map((subject) => (
                 <button
-                  key={subj}
-                  onClick={() => handleSubjectSelect(subj)}
-                  className="p-4 bg-neutral-800 border border-neutral-700 hover:border-yellow-500 rounded-xl font-bold text-base sm:text-lg transition-all text-yellow-400"
+                  key={subject}
+                  type="button"
+                  onClick={() => setSelectedSubject(subject)}
+                  className="truncate rounded-xl border border-neutral-700 bg-neutral-800 p-3 text-sm font-bold text-yellow-400 transition-all hover:border-yellow-500 sm:text-base"
                 >
-                  {subj}
+                  {subject}
                 </button>
               ))}
             </div>
           </div>
+        ) : !selectedYear ? (
+          <div className="overflow-y-auto py-4 pr-1 text-center sm:py-6">
+            <h4 className="mb-2 text-lg font-semibold sm:text-xl">Select Exam Year</h4>
+            <p className="mb-4 text-xs text-neutral-400 sm:text-sm">
+              Choose the past question year for <span className="font-bold text-yellow-500">{selectedSubject}</span>:
+            </p>
+            <div className="mx-auto grid max-h-[50vh] max-w-lg grid-cols-3 gap-2.5 overflow-y-auto p-1 sm:grid-cols-4">
+              {YEARS.map((year) => (
+                <button
+                  key={year}
+                  type="button"
+                  onClick={() => setSelectedYear(year)}
+                  className="rounded-xl border border-neutral-700 bg-neutral-800 p-3 text-sm font-bold text-yellow-400 transition-all hover:border-yellow-500 sm:text-base"
+                >
+                  {year}
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={() => setSelectedSubject(null)} className="mt-6 text-xs text-neutral-400 underline hover:text-white">
+              ← Back to Subjects
+            </button>
+          </div>
         ) : !questionCount ? (
-          /* Step 2: Question Count Selection */
-          <div className="py-4 sm:py-6 text-center overflow-y-auto pr-1">
-            <h4 className="text-lg sm:text-xl font-semibold mb-2">Select Number of Questions</h4>
-            <p className="text-xs sm:text-sm text-neutral-400 mb-4">How many questions do you want for <span className="text-yellow-500 font-bold">{selectedSubject}</span>?</p>
-            <div className="grid grid-cols-2 gap-3 max-w-md mx-auto">
-              {[5, 10, 20, 40].map((count) => (
+          <div className="overflow-y-auto py-4 pr-1 text-center sm:py-6">
+            <h4 className="mb-2 text-lg font-semibold sm:text-xl">Select Number of Questions</h4>
+            <p className="mb-4 text-xs text-neutral-400 sm:text-sm">
+              How many questions for <span className="font-bold text-yellow-500">{selectedSubject} ({selectedYear})</span>?
+            </p>
+            <div className="mx-auto grid max-w-md grid-cols-2 gap-3">
+              {QUESTION_COUNTS.map((count) => (
                 <button
                   key={count}
+                  type="button"
                   onClick={() => handleCountSelect(count)}
-                  className="p-4 bg-neutral-800 border border-neutral-700 hover:border-yellow-500 rounded-xl font-bold text-base transition-all text-yellow-400"
+                  className="rounded-xl border border-neutral-700 bg-neutral-800 p-4 text-base font-bold text-yellow-400 transition-all hover:border-yellow-500"
                 >
                   {count} Questions
                 </button>
               ))}
             </div>
-            <button
-              onClick={() => setSelectedSubject(null)}
-              className="mt-6 text-xs text-neutral-400 underline hover:text-white"
-            >
-              ← Back to Subjects
+            <button type="button" onClick={() => setSelectedYear(null)} className="mt-6 text-xs text-neutral-400 underline hover:text-white">
+              ← Back to Years
             </button>
           </div>
         ) : loading ? (
-          /* Step 3 (Loading State): Smooth Spinner */
-          <div className="flex flex-col items-center justify-center py-16 text-white text-center">
-            <div className="w-12 h-12 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <h4 className="text-base sm:text-lg font-semibold mb-1">Loading {questionCount} questions...</h4>
-            <p className="text-xs sm:text-sm text-neutral-400">Please wait while we set up your {selectedSubject} CBT session.</p>
+          <div className="flex flex-col items-center justify-center py-16 text-center text-white">
+            <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-yellow-500 border-t-transparent" />
+            <h4 className="mb-1 text-base font-semibold sm:text-lg">Loading {questionCount} questions...</h4>
+            <p className="text-xs text-neutral-400 sm:text-sm">Fetching {selectedSubject} ({selectedYear}) past questions.</p>
           </div>
-        ) : !isSubmitted ? (
-          /* Step 4: Active Exam Questions & Options */
-          <div className="flex-1 overflow-y-auto pr-1 flex flex-col justify-between">
+        ) : error ? (
+          <div className="py-12 text-center">
+            <h4 className="mb-2 text-lg font-semibold text-red-400">Questions could not be loaded</h4>
+            <p className="mx-auto mb-6 max-w-lg text-sm text-neutral-300">{error}</p>
+            <div className="flex justify-center gap-3">
+              <button type="button" onClick={() => fetchQuestions(selectedSubject, selectedYear, questionCount)} className="rounded-xl bg-yellow-500 px-4 py-2.5 text-sm font-bold text-black hover:bg-yellow-400">
+                Try Again
+              </button>
+              <button type="button" onClick={() => setQuestionCount(null)} className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2.5 text-sm hover:bg-neutral-700">
+                Change Count
+              </button>
+            </div>
+          </div>
+        ) : !isSubmitted && currentQuestion ? (
+          <div className="flex flex-1 flex-col justify-between overflow-y-auto pr-1">
             <div>
-              <div className="flex justify-between text-xs text-neutral-400 mb-3">
-                <span>Subject: <strong className="text-yellow-500">{selectedSubject}</strong></span>
+              <div className="mb-3 flex justify-between text-xs text-neutral-400">
+                <span>Subject: <strong className="text-yellow-500">{selectedSubject} ({selectedYear})</strong></span>
                 <span>Question {currentIdx + 1} of {questions.length}</span>
               </div>
 
-              {/* Instruction / Passage Context */}
-              {questions[currentIdx]?.section && (
-                <div 
-                  className="bg-neutral-800/80 p-3 rounded-xl border border-neutral-700 text-xs text-neutral-300 mb-3" 
-                  dangerouslySetInnerHTML={{ __html: questions[currentIdx].section }}
-                ></div>
+              {currentQuestion.section && (
+                <p className="mb-3 max-h-[25vh] overflow-y-auto rounded-xl border border-neutral-700 bg-neutral-800/80 p-3 text-xs text-neutral-300 whitespace-pre-line">
+                  {currentQuestion.section}
+                </p>
               )}
 
-              <div className="bg-neutral-800/50 p-3.5 sm:p-4 rounded-xl border border-neutral-800 mb-4">
-                <h4 
-                  className="text-xs sm:text-sm md:text-base font-medium leading-relaxed" 
-                  dangerouslySetInnerHTML={{ __html: formatMathText(questions[currentIdx]?.question) }}
-                ></h4>
+              <div className="mb-4 max-h-[30vh] overflow-y-auto rounded-xl border border-neutral-800 bg-neutral-800/50 p-3.5 sm:p-4">
+                {currentQuestion.instruction && (
+                  <p className="mb-1 text-xs font-semibold text-yellow-400 sm:text-sm">{currentQuestion.instruction}</p>
+                )}
+                <p className="whitespace-pre-line text-xs font-medium leading-relaxed sm:text-sm md:text-base">{currentQuestion.question}</p>
               </div>
 
-              {/* Options List */}
-              <div className="space-y-2.5 mb-4">
-                {Object.entries(questions[currentIdx]?.options || {}).map(([key, optionText]) => {
-                  if (!optionText) return null;
-                  const optionLetter = key.toLowerCase();
-                  const isSelected = selectedAnswers[currentIdx] === optionLetter;
-
+              <div className="mb-4 space-y-2">
+                {OPTION_LETTERS.filter((letter) => currentQuestion.options[letter]).map((letter) => {
+                  const isSelected = selectedAnswers[currentIdx] === letter;
                   return (
                     <button
-                      key={key}
-                      onClick={() => handleSelect(optionLetter)}
-                      className={`w-full text-left px-3.5 py-3 rounded-xl border transition-all text-xs sm:text-sm flex items-center gap-3 ${
+                      key={letter}
+                      type="button"
+                      onClick={() => handleSelect(letter)}
+                      aria-pressed={isSelected}
+                      className={[
+                        'flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-xs transition-all sm:text-sm',
                         isSelected
-                          ? 'bg-yellow-500 text-black border-yellow-500 font-bold'
-                          : 'bg-neutral-800 border-neutral-700 text-white hover:bg-neutral-750'
-                      }`}
+                          ? 'border-yellow-500 bg-yellow-500 font-bold text-black'
+                          : 'border-neutral-700 bg-neutral-800 text-white hover:bg-neutral-700'
+                      ].join(' ')}
                     >
-                      <span className={`w-5 h-5 sm:w-6 sm:h-6 shrink-0 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-bold border ${isSelected ? 'border-black bg-black text-yellow-500' : 'border-neutral-600 bg-neutral-900 text-neutral-400'}`}>
-                        {optionLetter.toUpperCase()}
+                      <span className={[
+                        'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold sm:h-6 sm:w-6 sm:text-xs',
+                        isSelected ? 'border-black bg-black text-yellow-500' : 'border-neutral-600 bg-neutral-900 text-neutral-400'
+                      ].join(' ')}>
+                        {letter.toUpperCase()}
                       </span>
-                      <span 
-                        className="leading-tight"
-                        dangerouslySetInnerHTML={{ __html: formatMathText(optionText) }}
-                      ></span>
+                      <span className="leading-tight">{currentQuestion.options[letter]}</span>
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* Navigation Buttons */}
-            <div className="flex justify-between pt-3 border-t border-neutral-800 mt-2 shrink-0">
-              <button
-                disabled={currentIdx === 0}
-                onClick={() => setCurrentIdx((prev) => prev - 1)}
-                className="px-4 py-2 bg-neutral-800 rounded-xl text-xs sm:text-sm disabled:opacity-40 hover:bg-neutral-700"
-              >
+            <div className="mt-2 flex shrink-0 justify-between border-t border-neutral-800 pt-3">
+              <button type="button" disabled={currentIdx === 0} onClick={() => setCurrentIdx((index) => index - 1)} className="rounded-xl bg-neutral-800 px-4 py-2 text-xs hover:bg-neutral-700 disabled:opacity-40 sm:text-sm">
                 Previous
               </button>
-              
               {currentIdx < questions.length - 1 ? (
-                <button
-                  onClick={() => setCurrentIdx((prev) => prev + 1)}
-                  className="px-5 py-2 bg-yellow-500 text-black font-bold rounded-xl text-xs sm:text-sm hover:bg-yellow-400"
-                >
+                <button type="button" onClick={() => setCurrentIdx((index) => index + 1)} className="rounded-xl bg-yellow-500 px-5 py-2 text-xs font-bold text-black hover:bg-yellow-400 sm:text-sm">
                   Next
                 </button>
               ) : (
-                <button
-                  onClick={handleSubmit}
-                  className="px-5 py-2 bg-green-600 text-white font-bold rounded-xl text-xs sm:text-sm hover:bg-green-500"
-                >
+                <button type="button" onClick={() => setIsSubmitted(true)} className="rounded-xl bg-green-600 px-5 py-2 text-xs font-bold text-white hover:bg-green-500 sm:text-sm">
                   Submit Exam
                 </button>
               )}
             </div>
           </div>
         ) : !showReview ? (
-          /* Step 5: Total Score Summary Displayed Only After Submission */
-          <div className="text-center py-6 overflow-y-auto pr-1">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-yellow-500/10 border border-yellow-500 text-yellow-500 rounded-full flex items-center justify-center mx-auto mb-4 text-xl sm:text-2xl font-bold">
-              {calculateScore()} / {questions.length}
+          <div className="overflow-y-auto py-6 pr-1 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-yellow-500 bg-yellow-500/10 text-xl font-bold text-yellow-500 sm:h-20 sm:w-20 sm:text-2xl">
+              {score} / {questions.length}
             </div>
-            <h4 className="text-xl sm:text-2xl font-bold mb-1">Exam Submitted!</h4>
-            <p className="text-xs sm:text-sm text-neutral-400 mb-6">
-              You scored <span className="text-yellow-500 font-bold">{Math.round((calculateScore() / questions.length) * 100)}%</span> in {selectedSubject}.
+            <h4 className="mb-1 text-xl font-bold sm:text-2xl">Exam Submitted!</h4>
+            <p className="mb-6 text-xs text-neutral-400 sm:text-sm">
+              You scored <span className="font-bold text-yellow-500">{percentage}%</span> in {selectedSubject} ({selectedYear}).
             </p>
-            <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-3">
-              <button
-                onClick={() => setShowReview(true)}
-                className="px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 rounded-xl text-xs sm:text-sm border border-neutral-700 font-medium"
-              >
+            <div className="flex flex-col justify-center gap-2 sm:flex-row sm:gap-3">
+              <button type="button" onClick={() => setShowReview(true)} className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2.5 text-xs font-medium hover:bg-neutral-700 sm:text-sm">
                 View Corrections
               </button>
-              <button
-                onClick={onClose}
-                className="px-5 py-2.5 bg-yellow-500 text-black font-bold rounded-xl text-xs sm:text-sm hover:bg-yellow-400"
-              >
-                Close Practice
+              <button type="button" onClick={resetQuiz} className="rounded-xl bg-yellow-500 px-5 py-2.5 text-xs font-bold text-black hover:bg-yellow-400 sm:text-sm">
+                Start Another Test
               </button>
             </div>
           </div>
         ) : (
-          /* Step 6: Review Corrections */
-          <div className="flex-1 overflow-y-auto pr-1 space-y-3">
-            <div className="flex justify-between items-center mb-1">
-              <h4 className="font-bold text-xs sm:text-sm text-yellow-500">Correct Answers & Explanations</h4>
-              <button onClick={() => setShowReview(false)} className="text-xs text-neutral-400 underline">Back</button>
+          <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+            <div className="mb-1 flex items-center justify-between">
+              <h4 className="text-xs font-bold text-yellow-500 sm:text-sm">Correct Answers & Explanations</h4>
+              <button type="button" onClick={() => setShowReview(false)} className="text-xs text-neutral-400 underline">Back</button>
             </div>
-            {questions.map((q, idx) => {
-              const userChoice = selectedAnswers[idx];
-              const isCorrect = userChoice === q.answer;
-
+            {questions.map((question, index) => {
+              const userChoice = selectedAnswers[index];
+              const isCorrect = userChoice === question.answer;
               return (
-                <div key={q.id} className="bg-neutral-800/40 border border-neutral-800 p-3.5 rounded-xl text-xs space-y-1.5">
-                  <p className="font-semibold" dangerouslySetInnerHTML={{ __html: `${idx + 1}. ${formatMathText(q.question)}` }}></p>
+                <div key={question.id || index} className="space-y-1.5 rounded-xl border border-neutral-800 bg-neutral-800/40 p-3.5 text-xs">
+                  <p className="font-semibold">{index + 1}. {question.question}</p>
                   <p className="text-neutral-300">
-                    Your Choice: <span className={`font-bold ${isCorrect ? 'text-green-400' : 'text-yellow-400'}`}>
-                      {userChoice ? `${userChoice.toUpperCase()}. ${q.options[userChoice] || ''}` : 'Not Answered'}
+                    Your Choice: <span className={isCorrect ? 'font-bold text-green-400' : 'font-bold text-yellow-400'}>
+                      {userChoice ? userChoice.toUpperCase() + '. ' + (question.options[userChoice] || '') : 'Not Answered'}
                     </span>
                   </p>
-                  <p className="text-green-400 font-semibold">
-                    Correct Answer: {q.answer.toUpperCase()}. {q.options[q.answer] || ''}
+                  <p className="font-semibold text-green-400">
+                    Correct Answer: {question.answer ? question.answer.toUpperCase() + '. ' + (question.options[question.answer] || '') : 'Not available'}
                   </p>
-                  <div className="bg-neutral-900 p-2.5 rounded-lg text-neutral-400 border border-neutral-800" dangerouslySetInnerHTML={{ __html: `Explanation: ${formatMathText(q.explanation)}` }}></div>
+                  <p className="rounded-lg border border-neutral-800 bg-neutral-900 p-2.5 text-neutral-400">
+                    Explanation: {question.explanation}
+                  </p>
                 </div>
               );
             })}
           </div>
         )}
-
       </div>
     </div>
   );

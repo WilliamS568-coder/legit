@@ -3,6 +3,34 @@ import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useLocation } from 'react-router-dom';
 
+// List of common disposable/fake email domains to block
+const disposableDomains = ['tempmail.com', '10minutemail.com', 'trashmail.com', 'fakeemail.com', 'guerrillamail.com'];
+
+const validateRealEmail = (email) => {
+  // 1. Regex Syntax Check
+  const regex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!regex.test(email)) {
+    return { isValid: false, message: "Please enter a valid email address format." };
+  }
+
+  const domain = email.split('@')[1].toLowerCase();
+
+  // 2. Check for disposable fake emails
+  if (disposableDomains.includes(domain)) {
+    return { isValid: false, message: "Temporary or disposable email addresses are not allowed." };
+  }
+
+  // 3. Catch common typos in popular providers
+  if (domain === 'gnail.com' || domain === 'gamil.com') {
+    return { isValid: false, message: "Did you mean gmail.com?" };
+  }
+  if (domain === 'yaho.com') {
+    return { isValid: false, message: "Did you mean yahoo.com?" };
+  }
+
+  return { isValid: true };
+};
+
 export default function Register() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -16,9 +44,17 @@ export default function Register() {
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setErrorMsg('');
     setSuccessMsg('');
+
+    // Run Real Email Validation Check
+    const emailCheck = validateRealEmail(email);
+    if (!emailCheck.isValid) {
+      setErrorMsg(emailCheck.message);
+      return;
+    }
+
+    setLoading(true);
 
     const { error } = await supabase.auth.signUp({
       email,
@@ -36,7 +72,7 @@ export default function Register() {
       return;
     }
 
-    setSuccessMsg('Registration successful! Redirecting to login...');
+    setSuccessMsg('Registration successful! Comfirm your email...');
     setTimeout(() => {
       navigate('/login');
     }, 2000);
