@@ -52,19 +52,26 @@ export default function App() {
 
     checkAndSendWelcomeNotification();
 
-    PushNotifications.requestPermissions().then(result => {
-      if (result.receive === 'granted') {
-        PushNotifications.register();
-      }
-    });
+    // Safely handle push notifications with a try/catch to prevent app crashes
+    try {
+      PushNotifications.requestPermissions().then(result => {
+        if (result.receive === 'granted') {
+          PushNotifications.register();
+        }
+      }).catch(err => {
+        console.log('Push permission error: ', err);
+      });
 
-    PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      console.log('Push received: ', notification);
-    });
+      PushNotifications.addListener('pushNotificationReceived', (notification) => {
+        console.log('Push received: ', notification);
+      });
 
-    PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-      console.log('Push action performed: ', notification);
-    });
+      PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+        console.log('Push action performed: ', notification);
+      });
+    } catch (e) {
+      console.log('Notifications not supported in this environment', e);
+    }
 
     return () => {
       window.removeEventListener('online', handleOnline);
