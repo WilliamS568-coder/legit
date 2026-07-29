@@ -17,7 +17,7 @@ export async function registerPushNotifications() {
 
     // 2. Get FCM Device Token using your Public VAPID Key from Firebase Console
     const currentToken = await getToken(messaging, {
-      vapidKey: 'YOUR_PUBLIC_VAPID_KEY_FROM_FIREBASE_CONSOLE'
+      vapidKey: 'BFmWC7G2itysze-j2QKw799fltqQkiFmRhnE2k-Met2b-tNjT-B8hTY55Cv8EoAMPOgpGrjD6nL8syK0gf280lE'
     });
 
     if (currentToken) {
