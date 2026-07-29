@@ -1,3 +1,4 @@
+import React, { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
@@ -19,6 +20,9 @@ import UpdatePassword from './components/UpdatePassword';
 import AdminDashboard from './components/AdminDashboard';
 import StudentDashboard from './components/StudentDashboard';
 
+// Welcome Notification Helper
+import { checkAndSendWelcomeNotification } from './welcomeNotification';
+
 function Home() {
   return (
     <div>
@@ -35,6 +39,11 @@ function Home() {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Triggers welcome notification on first launch
+    checkAndSendWelcomeNotification();
+  }, []);
+
   return (
     <div className="bg-black min-h-screen text-white">
       <Routes>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import PaystackPop from '@paystack/inline-js';
+import CBTSimulator from './CBTSimulator';
 
 export default function StudentDashboard() {
   const [profile, setProfile] = useState(null);
@@ -25,6 +26,9 @@ export default function StudentDashboard() {
   const [checkingIn, setCheckingIn] = useState(false);
   const [attendanceMsg, setAttendanceMsg] = useState('');
   const [alreadyCheckedIn, setAlreadyCheckedIn] = useState(false);
+
+  // CBT Simulator states
+  const [isCBTOpen, setIsCBTOpen] = useState(false);
 
   const navigate = useNavigate();
 
@@ -91,7 +95,7 @@ export default function StudentDashboard() {
   }, []);
 
   useEffect(() => {
-    if (isModalOpen || isProgramModalOpen) {
+    if (isModalOpen || isProgramModalOpen || isCBTOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -99,7 +103,7 @@ export default function StudentDashboard() {
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [isModalOpen, isProgramModalOpen]);
+  }, [isModalOpen, isProgramModalOpen, isCBTOpen]);
 
   const fetchStudentData = async () => {
     setLoading(true);
@@ -339,6 +343,22 @@ export default function StudentDashboard() {
           </div>
         </div>
 
+        {/* CBT Practice Card */}
+        <div className="bg-gradient-to-br from-neutral-900 to-neutral-950 border border-yellow-500/40 p-5 sm:p-6 rounded-2xl shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="space-y-1">
+            <h3 className="text-base sm:text-lg font-bold text-white">JAMB CBT Practice</h3>
+            <p className="text-xs sm:text-sm text-gray-400">
+              Practice with live past questions from various subjects. Test your knowledge and track your performance.
+            </p>
+          </div>
+          <button
+            onClick={() => setIsCBTOpen(true)}
+            className="w-full sm:w-auto font-bold px-6 py-3 rounded-xl text-xs sm:text-sm bg-yellow-500 hover:bg-yellow-400 text-black transition-all shadow-lg cursor-pointer"
+          >
+            Start CBT Practice
+          </button>
+        </div>
+
         {/* Daily Attendance Card */}
         <div className="bg-neutral-900 border border-yellow-500/30 p-5 sm:p-6 rounded-2xl shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="space-y-1">
@@ -503,6 +523,11 @@ export default function StudentDashboard() {
         </div>
       )}
 
+      {/* CBT Simulator Modal */}
+      {isCBTOpen && (
+        <CBTSimulator onClose={() => setIsCBTOpen(false)} />
+      )}
+
       {/* First-Time Program Selection Modal (Scrollable for mobile responsiveness) */}
       {isProgramModalOpen && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
@@ -511,6 +536,7 @@ export default function StudentDashboard() {
             <div className="space-y-1.5 text-center">
               <h3 className="text-lg sm:text-2xl font-extrabold text-white">What are you applying for?</h3>
               <p className="text-xs sm:text-sm text-gray-400">Please choose your primary tutorial package and session to complete your profile setup.</p>
+      
             </div>
 
             <div className="space-y-2.5">
@@ -535,7 +561,6 @@ export default function StudentDashboard() {
                 </label>
               ))}
             </div>
-
             {/* Session Selection (Morning / Night) */}
             <div className="space-y-2 pt-2 border-t border-neutral-800">
               <label className="text-xs font-semibold text-yellow-500">Choose Session:</label>

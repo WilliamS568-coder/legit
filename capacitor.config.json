@@ -1,0 +1,9 @@
+{
+  "appId": "com.legittutors.app",
+  "appName": "legit Tutors",
+  "webDir": "dist",
+  "server": {
+    "url": "https://legit-tutors.vercel.app/",
+    "cleartext": true
+  }
+}
