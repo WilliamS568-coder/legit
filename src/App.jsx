@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { App as CapApp } from '@capacitor/app';
+import { getToken, onMessage } from 'firebase/messaging';
+import { messaging } from './firebase';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import About from './components/About';
@@ -49,11 +51,35 @@ export default function App() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Safe web-based notification helper
-    try {
-      checkAndSendWelcomeNotification();
-    } catch (e) {
-      console.log('Notification helper error:', e);
+    checkAndSendWelcomeNotification();
+
+    // Request Web Notification Permission & Get Token
+    const setupNotifications = async () => {
+      try {
+        if (messaging) {
+          const permission = await Notification.requestPermission();
+          if (permission === 'granted') {
+            const token = await getToken(messaging, {
+              vapidKey: "BFmWC7G2itysze-j2QKw799fltqQkiFmRhnE2k-Met2b-tNjT-B8hTY55Cv8EoAMPOgpGrjD6nL8syK0gf280lE"
+            });
+            console.log('FCM Device Token:', token);
+          } else {
+            console.log('Notification permission denied.');
+          }
+        }
+      } catch (error) {
+        console.log('Notification setup error:', error);
+      }
+    };
+
+    setupNotifications();
+
+    // Listen for incoming foreground messages
+    if (messaging) {
+      onMessage(messaging, (payload) => {
+        console.log('Message received in foreground: ', payload);
+        alert(`${payload.notification?.title || 'Notification'}: ${payload.notification?.body || ''}`);
+      });
     }
 
     return () => {
