@@ -116,7 +116,7 @@ export async function registerPushNotifications() {
       action: !!actionListener
     });
     
-    alert('Study reminders enabled successfully! You will receive notifications for your study sessions.\n\nTo test: Send a notification from Firebase Console to your device token.');
+    alert('Study reminders enabled successfully! You will receive notifications for your study sessions.');
     
   } catch (error) {
     console.error('❌ Error setting up push notifications:', error);

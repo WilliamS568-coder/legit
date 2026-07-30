@@ -1,5 +1,6 @@
 // If your logo is saved in src/assets/logo.png (adjust filename as needed)
 import { Link } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import logo from '../assets/legit.jpg'; // or your logo path
 
 export default function Hero() {
@@ -38,17 +39,19 @@ export default function Hero() {
             Register Now
           </Link>
           
-          <a 
-            href="https://docs.google.com/uc?export=download&id=1YZeXMV6k4gQTcAX4L3vyuldCyHVaIKB0"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="bg-green-500 hover:bg-green-600 text-white font-bold px-8 py-3 rounded-lg transition-all shadow-lg flex items-center gap-2"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25L15 12 3 5.25v2.25h18V16.5H3zM15 12l6-6m0 0v6m0-6H9" />
-            </svg>
-            Download Our App
-          </a>
+          {!Capacitor.isNativePlatform() && (
+            <a 
+              href="https://docs.google.com/uc?export=download&id=1YZeXMV6k4gQTcAX4L3vyuldCyHVaIKB0"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-green-500 hover:bg-green-600 text-white font-bold px-8 py-3 rounded-lg transition-all shadow-lg flex items-center gap-2"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25L15 12 3 5.25v2.25h18V16.5H3zM15 12l6-6m0 0v6m0-6H9" />
+              </svg>
+              Download Our App
+            </a>
+          )}
         </div>
       </div>
     </div>
