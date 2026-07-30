@@ -35,6 +35,7 @@ import Login from './components/Login';
 import Register from './components/register';
 import ForgotPassword from './components/ForgotPassword';
 import UpdatePassword from './components/UpdatePassword';
+import VerifyEmail from './components/VerifyEmail';
 import AdminDashboard from './components/AdminDashboard';
 import StudentDashboard from './components/StudentDashboard';
 
@@ -332,6 +333,7 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/update-password" element={<UpdatePassword />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/admin-dashboard" element={<AdminDashboard />} />
         <Route path="/student-dashboard" element={<StudentDashboard />} />
       </Routes>

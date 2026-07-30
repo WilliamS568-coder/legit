@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import PaystackPop from '@paystack/inline-js';
 import CBTSimulator from './CBTSimulator';
-import NotificationDiagnostics from './NotificationDiagnostics';
 
 export default function StudentDashboard() {
   const [profile, setProfile] = useState(null);
@@ -496,9 +495,6 @@ export default function StudentDashboard() {
             </div>
           )}
         </div>
-
-        {/* Notification Diagnostics Tool */}
-        <NotificationDiagnostics />
 
       </div>
 

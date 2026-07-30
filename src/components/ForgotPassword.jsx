@@ -16,7 +16,7 @@ export default function ForgotPassword() {
     setMessage('');
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/update-password`,
+      redirectTo: 'https://legit-tutors.vercel.app/update-password',
     });
 
     if (error) {

@@ -68,7 +68,9 @@ export async function scheduleDailyReminders() {
               },
               sound: 'default',
               vibration: true,
-              light: true
+              light: true,
+              icon: 'ic_notification',
+              smallIcon: 'ic_notification'
             }
           ]
         });

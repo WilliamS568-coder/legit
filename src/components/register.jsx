@@ -63,6 +63,7 @@ export default function Register() {
         data: {
           full_name: fullName,
         },
+        emailRedirectTo: `${window.location.origin}/verify-email`,
       },
     });
 
