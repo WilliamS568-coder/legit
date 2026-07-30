@@ -174,20 +174,7 @@ export default function Navbar() {
             Register Now
           </Link>
 
-          {!Capacitor.isNativePlatform() && (
-            <a 
-              href="https://docs.google.com/uc?export=download&id=1YZeXMV6k4gQTcAX4L3vyuldCyHVaIKB0"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setIsOpen(false)}
-              className="block text-center bg-green-500 hover:bg-green-600 text-white font-bold py-2 rounded-lg mt-2 flex items-center justify-center gap-2"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25L15 12 3 5.25v2.25h18V16.5H3zM15 12l6-6m0 0v6m0-6H9" />
-              </svg>
-              Download App
-            </a>
-          )}
+         
         </div>
       )}
     </nav>
