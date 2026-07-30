@@ -10,18 +10,33 @@ export default function UpdatePassword() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Supabase automatically captures the recovery token from the URL hash.
-    // We can listen for the PASSWORD_RECOVERY event to ensure the session is active.
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        // Session is active and ready for password update
-      }
-    });
+    // Check for password recovery token in URL hash
+    const checkRecoveryToken = async () => {
+      const hash = window.location.hash;
+      
+      if (hash && hash.includes('access_token')) {
+        const hashParams = new URLSearchParams(hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+        const type = hashParams.get('type');
 
-    return () => {
-      authListener.subscription.unsubscribe();
+        if (accessToken && type === 'recovery') {
+          // Establish session with the recovery token
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+
+          if (error) {
+            console.error('Session error:', error);
+            setErrorMsg('Invalid or expired recovery link. Please request a new one.');
+          }
+        }
+      }
     };
-  }, []);
+
+    checkRecoveryToken();
+  }, [navigate]);
 
   const handleUpdatePassword = async (e) => {
     e.preventDefault();

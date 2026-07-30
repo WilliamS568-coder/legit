@@ -1,16 +1,48 @@
 import { useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { supabase } from '../supabaseClient';
 
 export default function VerifyEmail() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Auto redirect to login after 5 seconds
-    const timer = setTimeout(() => {
-      navigate('/login');
-    }, 5000);
+    const establishSession = async () => {
+      try {
+        // Get tokens from URL hash (Supabase includes them after email verification)
+        const hash = window.location.hash;
+        
+        if (hash && hash.includes('access_token')) {
+          const hashParams = new URLSearchParams(hash.substring(1));
+          const accessToken = hashParams.get('access_token');
+          const refreshToken = hashParams.get('refresh_token');
 
-    return () => clearTimeout(timer);
+          if (accessToken && refreshToken) {
+            // Establish session - email is already verified by Supabase
+            const { data, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+
+            if (error) {
+              console.error('Session error:', error);
+              return;
+            }
+
+            // Success! User is now authenticated with confirmed email
+            if (data.user) {
+              // Redirect to login after 2 seconds
+              setTimeout(() => {
+                navigate('/login');
+              }, 2000);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Verification error:', error);
+      }
+    };
+
+    establishSession();
   }, [navigate]);
 
   return (
@@ -41,7 +73,7 @@ export default function VerifyEmail() {
           </Link>
           
           <p className="text-center text-xs text-gray-400">
-            Redirecting to login in 5 seconds...
+            Redirecting to login in 2 seconds...
           </p>
         </div>
 
