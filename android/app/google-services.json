@@ -1,10 +1,10 @@
 {
   "project_info": {
     "project_number": "656395612665",
-    "project_id": "legit-tutors",
-    "storage_bucket": "legit-tutors.firebasestorage.app"
+    "project_id": "legit-tutots",
+    "storage_bucket": "legit-tutots.firebasestorage.app"
   },
-  "client": [
+    "client": [
     {
       "client_info": {
         "mobilesdk_app_id": "1:656395612665:android:cf2b03ded44f2c90dc0d28",

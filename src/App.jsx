@@ -40,6 +40,8 @@ import StudentDashboard from './components/StudentDashboard';
 
 // Welcome Notification Helper
 import { checkAndSendWelcomeNotification } from './welcomeNotification';
+import { sendWelcomeNotification, scheduleDailyReminders } from './services/notificationScheduler';
+import { registerPushNotifications } from './useFCMNotification';
 
 function Home() {
   return (
@@ -72,49 +74,27 @@ export default function App() {
         if (Capacitor.isNativePlatform()) {
           console.log('📱 Setting up native push notifications...');
           
-          // Request permission first
-          let permStatus = await PushNotifications.checkPermissions();
-          console.log('Current permission status:', permStatus);
+          // Register for FCM push notifications
+          await registerPushNotifications();
 
-          if (permStatus.receive !== 'granted') {
-            permStatus = await PushNotifications.requestPermissions();
-            console.log('Requested permission result:', permStatus);
+          // Send welcome notification and schedule daily reminders
+          console.log('🎉 Setting up local notifications...');
+          
+          // Send welcome notification
+          try {
+            await sendWelcomeNotification();
+          } catch (error) {
+            console.error('Welcome notification error:', error);
           }
-
-          if (permStatus.receive !== 'granted') {
-            console.log('❌ User denied native push notification permission.');
-            alert('Please enable notifications in your device settings to receive study reminders.');
-            return;
+          
+          // Schedule daily reminders
+          try {
+            await scheduleDailyReminders();
+          } catch (error) {
+            console.error('Schedule reminders error:', error);
           }
-
-          console.log('✅ Native notification permission granted');
-
-          // Register for push notifications
-          await PushNotifications.register();
-          console.log('✅ Push notifications registered');
-
-          // Listen for registration success
-          PushNotifications.addListener('registration', (token) => {
-            console.log('✅ Native push registration token:', token.value);
-          });
-
-          // Listen for registration errors
-          PushNotifications.addListener('registrationError', (error) => {
-            console.error('❌ Error on native push registration:', JSON.stringify(error));
-          });
-
-          // Listen for incoming notifications
-          PushNotifications.addListener('pushNotificationReceived', (notification) => {
-            console.log('📬 Notification received:', notification);
-            alert(`${notification.title || 'Notification'}: ${notification.body || ''}`);
-          });
-
-          // Listen for notification tap
-          PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-            console.log('🔔 Notification tapped:', notification);
-          });
-
-          console.log('✅ Native push notifications setup complete');
+          
+          console.log('✅ Local notifications setup complete');
         } else {
           // Web Browser Firebase Messaging Setup
           console.log('🌐 Setting up web push notifications...');

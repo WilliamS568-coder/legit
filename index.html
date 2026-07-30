@@ -34,6 +34,74 @@
   </head>
   <body>
     <div id="root"></div>
+    
+    <!-- Immediate offline check before app loads -->
+    <script>
+      // Redirect to offline page if not online
+      function checkOnlineAndRedirect() {
+        if (!navigator.onLine) {
+          window.location.href = '/offline.html';
+          return false;
+        }
+        return true;
+      }
+      
+      // Check immediately on page load
+      if (!checkOnlineAndRedirect()) {
+        throw new Error('Offline - redirecting to offline page');
+      }
+      
+      // Monitor online status continuously
+      window.addEventListener('online', function() {
+        // Connection restored, reload if on offline page
+        if (window.location.pathname === '/offline.html') {
+          window.location.href = '/';
+        }
+      });
+      
+      window.addEventListener('offline', function() {
+        // Connection lost, redirect to offline page
+        window.location.href = '/offline.html';
+      });
+      
+      // Intercept ALL clicks before they reach the app
+      document.addEventListener('click', function(e) {
+        if (!navigator.onLine) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          window.location.href = '/offline.html';
+          return false;
+        }
+      }, true);
+      
+      // Intercept all form submissions
+      document.addEventListener('submit', function(e) {
+        if (!navigator.onLine) {
+          e.preventDefault();
+          e.stopPropagation();
+          window.location.href = '/offline.html';
+          return false;
+        }
+      }, true);
+      
+      // Intercept all touch events
+      document.addEventListener('touchstart', function(e) {
+        if (!navigator.onLine) {
+          e.preventDefault();
+          window.location.href = '/offline.html';
+          return false;
+        }
+      }, true);
+      
+      // Check before any navigation
+      window.addEventListener('beforeunload', function(e) {
+        if (!navigator.onLine) {
+          window.location.href = '/offline.html';
+        }
+      });
+    </script>
+    
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
