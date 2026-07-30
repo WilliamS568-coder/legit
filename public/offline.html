@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legit Tutors - Offline</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: #1f1f1f;
+            border: 2px solid #fbbf24;
+            border-radius: 20px;
+            padding: 40px 30px;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #fbbf24;
+            font-size: 28px;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+
+        p {
+            color: #a3a3a3;
+            font-size: 16px;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        button {
+            padding: 16px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .connect-btn {
+            background: #fbbf24;
+            color: #1a1a1a;
+        }
+
+        .connect-btn:hover {
+            background: #f59e0b;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(251, 191, 36, 0.3);
+        }
+
+        .connect-btn:active {
+            transform: translateY(0);
+        }
+
+        .exit-btn {
+            background: transparent;
+            color: #a3a3a3;
+            border: 2px solid #404040;
+        }
+
+        .exit-btn:hover {
+            background: #2d2d2d;
+            color: #ffffff;
+            border-color: #525252;
+        }
+
+        .logo {
+            margin-bottom: 20px;
+        }
+
+        .logo-text {
+            color: #ffffff;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .logo-text span {
+            color: #fbbf24;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            p {
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <div class="logo-text">LEGIT <span>TUTORS</span></div>
+        </div>
+        
+        <div class="icon">⚠️</div>
+        
+        <h1>Not Connected</h1>
+        
+        <p>
+            You are currently offline. Please check your internet connection to access the app.
+        </p>
+
+        <div class="button-group">
+            <button class="connect-btn" onclick="tryConnect()">
+                🔄 Connect
+            </button>
+            <button class="exit-btn" onclick="exitApp()">
+                ❌ Exit
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Check if we're online
+        function isOnline() {
+            return navigator.onLine;
+        }
+
+        // Try to connect/reload
+        function tryConnect() {
+            if (isOnline()) {
+                // If online, reload the app
+                window.location.reload();
+            } else {
+                // If still offline, show message
+                alert('Still offline. Please check your internet connection and try again.');
+            }
+        }
+
+        // Exit app (works in Capacitor)
+        function exitApp() {
+            // Try to exit using Capacitor if available
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+                window.Capacitor.Plugins.App.exitApp();
+            } else {
+                // For web, just show a message
+                alert('You can close this browser tab to exit.');
+            }
+        }
+
+        // Auto-check connection every 3 seconds
+        setInterval(() => {
+            if (isOnline()) {
+                console.log('Connection restored, reloading...');
+                window.location.reload();
+            }
+        }, 3000);
+
+        // Log initial status
+        console.log('Offline page loaded. Online:', isOnline());
+    </script>
+</body>
+</html>
