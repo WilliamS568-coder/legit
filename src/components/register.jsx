@@ -56,19 +56,51 @@ export default function Register() {
 
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
+    // Check if the email is already registered before proceeding.
+    // Supabase automatically rejects duplicate signups, but we catch both
+    // possible responses so the user gets a clear message:
+    //   1. An explicit error (e.g. "User already registered")
+    //   2. signUp returning a user with an EMPTY `identities` array,
+    //      which means no new account was actually created.
+    let data, error;
+    try {
+      const result = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
+          emailRedirectTo: `${window.location.origin}/verify-email`,
         },
-        emailRedirectTo: `${window.location.origin}/verify-email`,
-      },
-    });
+      });
+      data = result.data;
+      error = result.error;
+    } catch (err) {
+      error = err;
+    }
 
     if (error) {
-      setErrorMsg(error.message);
+      // Explicit "already existing" errors from Supabase
+      if (
+        error.code === 'user_already_exists' ||
+        error.message?.toLowerCase().includes('already registered') ||
+        error.message?.toLowerCase().includes('already been registered') ||
+        error.message?.toLowerCase().includes('already exists')
+      ) {
+        setErrorMsg('An account with this email already exists. Please login instead.');
+      } else {
+        setErrorMsg(error.message);
+      }
+      setLoading(false);
+      return;
+    }
+
+    // If Supabase returned a user object but NO new identity was created,
+    // the email is already registered under an unconfirmed/existing account.
+    const identities = data?.user?.identities;
+    if (data?.user && Array.isArray(identities) && identities.length === 0) {
+      setErrorMsg('An account with this email already exists. Please login instead.');
       setLoading(false);
       return;
     }
