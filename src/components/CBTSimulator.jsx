@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
-
-const API_TOKEN = 'ALOC-4f56e66ca205556ccddc';
+import { useRef, useState } from 'react';
+import { normalizeQuestion, OPTION_LETTERS } from '../lib/cbtQuestions';
 
 const SUBJECTS = [
   'English',
@@ -16,8 +15,24 @@ const SUBJECTS = [
   'Commerce',
   'Geography',
   'History',
-  'Agricultural Science'
 ];
+
+// Maps UI subject names to ALOC API subject names
+const SUBJECT_API_MAP = {
+  'English': 'english-language',
+  'Mathematics': 'mathematics',
+  'Physics': 'physics',
+  'Chemistry': 'chemistry',
+  'Biology': 'biology',
+  'Economics': 'economics',
+  'Government': 'government',
+  'Literature-in-English': 'literature-in-english',
+  'CRS': 'christian-religious-studies',
+  'Accounting': 'accounting',
+  'Commerce': 'commerce',
+  'Geography': 'geography',
+  'History': 'history',
+};
 
 const YEARS = [
   2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015,
@@ -25,69 +40,6 @@ const YEARS = [
 ];
 
 const QUESTION_COUNTS = [5, 10, 20, 40];
-const OPTION_LETTERS = ['a', 'b', 'c', 'd'];
-
-function toPlainText(value) {
-  if (value == null) return '';
-
-  // Deliberately render API content as text, never as executable HTML.
-  return String(value)
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function formatMathText(value) {
-  return toPlainText(value)
-    .replace(/([A-Za-z0-9])\^2/g, '$1²')
-    .replace(/([A-Za-z0-9])\^3/g, '$1³')
-    .replace(/\bpi\b/gi, 'π');
-}
-
-function normalizeAnswer(value) {
-  const answer = String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/^option[_\s-]?/, '');
-
-  const match = answer.match(/[a-d]/);
-  return match ? match[0] : '';
-}
-
-function normalizeOptions(question) {
-  let source = question.option;
-
-  if (typeof source === 'string') {
-    try {
-      source = JSON.parse(source);
-    } catch {
-      source = null;
-    }
-  }
-
-  if (!source || typeof source !== 'object') {
-    source = {
-      a: question.option_a,
-      b: question.option_b,
-      c: question.option_c,
-      d: question.option_d
-    };
-  }
-
-  return Object.entries(source).reduce((options, [key, value]) => {
-    const normalizedKey = normalizeAnswer(key);
-    if (OPTION_LETTERS.includes(normalizedKey) && value) {
-      options[normalizedKey] = formatMathText(value);
-    }
-    return options;
-  }, {});
-}
 
 export default function CBTSimulator({ onClose }) {
   const [selectedSubject, setSelectedSubject] = useState(null);
@@ -100,6 +52,65 @@ export default function CBTSimulator({ onClose }) {
   const [selectedAnswers, setSelectedAnswers] = useState({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showReview, setShowReview] = useState(false);
+  const [yearAvailability, setYearAvailability] = useState(null);
+  const [yearsLoading, setYearsLoading] = useState(false);
+  const availabilityCache = useRef(new Map());
+
+  const loadYearAvailability = async (subject) => {
+    const apiSubject = SUBJECT_API_MAP[subject] || subject.toLowerCase();
+    const cached = availabilityCache.current.get(apiSubject);
+
+    if (cached) {
+      setYearAvailability(cached);
+      setYearsLoading(false);
+      return;
+    }
+
+    setYearAvailability(null);
+    setYearsLoading(true);
+
+    try {
+      const response = await fetch(`/api/subject-years?subject=${encodeURIComponent(apiSubject)}`, {
+        headers: { Accept: 'application/json' },
+      });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const body = await response.json();
+      const rows = Array.isArray(body?.data) ? body.data : [];
+
+      if (rows.length > 0) {
+        const counts = rows.reduce((accumulator, row) => {
+          const jambCount = row?.breakdown?.jamb;
+          const fromBreakdown = typeof jambCount === 'number' ? jambCount : null;
+          const fromExamTypes = Array.isArray(row?.examTypes) && row.examTypes.includes('jamb')
+            ? Number(row?.questionCount) || 0
+            : 0;
+          accumulator[row.year] = fromBreakdown ?? fromExamTypes;
+          return accumulator;
+        }, {});
+
+        availabilityCache.current.set(apiSubject, counts);
+        setYearAvailability(counts);
+      }
+    } catch (availabilityError) {
+      // Availability is a nicety: on failure every year stays selectable.
+      console.warn('[CBT Frontend] Year availability lookup failed:', availabilityError.message);
+    } finally {
+      setYearsLoading(false);
+    }
+  };
+
+  const handleSubjectSelect = (subject) => {
+    setSelectedSubject(subject);
+    loadYearAvailability(subject);
+  };
+
+  const handleBackToSubjects = () => {
+    setSelectedSubject(null);
+    setYearAvailability(null);
+    setYearsLoading(false);
+  };
 
   const resetQuiz = () => {
     setSelectedSubject(null);
@@ -108,6 +119,8 @@ export default function CBTSimulator({ onClose }) {
     setQuestions([]);
     setLoading(false);
     setError('');
+    setYearAvailability(null);
+    setYearsLoading(false);
     setCurrentIdx(0);
     setSelectedAnswers({});
     setIsSubmitted(false);
@@ -130,31 +143,70 @@ export default function CBTSimulator({ onClose }) {
 
     try {
       const params = new URLSearchParams({
-        subject: subject.toLowerCase(),
+        subject: SUBJECT_API_MAP[subject] || subject.toLowerCase(),
+        examType: 'jamb',
         year: String(year),
-        type: 'utme',
-        random: 'true'
+        limit: String(count),
       });
-      const response = await fetch(
-        'https://questions.aloc.com.ng/api/v2/m/' + count + '?' + params.toString(),
-        {
-          method: 'GET',
-          headers: {
-            Accept: 'application/json',
-            AccessToken: API_TOKEN
-          }
-        }
-      );
+
+      const proxyUrl = `/api/questions?${params.toString()}`;
+
+      console.log('[CBT Frontend] Calling proxy:', proxyUrl);
+
+      const response = await fetch(proxyUrl, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+
+      const responseText = await response.text();
+      console.log('[CBT Frontend] Proxy status:', response.status);
+      console.log('[CBT Frontend] Proxy response preview:', responseText.substring(0, 500));
 
       if (!response.ok) {
+        let detail = responseText;
+        try {
+          const errJson = JSON.parse(responseText);
+          const upstream = errJson.detail ? String(errJson.detail) : '';
+          // The upstream 404 body is JSON-in-a-string; prefer its human message.
+          let upstreamMessage = '';
+          try {
+            const parsedUpstream = JSON.parse(upstream);
+            upstreamMessage = parsedUpstream.message || '';
+          } catch {
+            // Upstream detail was not JSON; fall through to the raw text.
+          }
+          detail = upstreamMessage || errJson.error || errJson.message || detail;
+        } catch {
+          // Proxy returned a non-JSON body; keep it as the detail.
+        }
+
+        if (response.status === 404) {
+          throw new Error('No questions are available for this subject and year yet. Try another year.');
+        }
+
+        if (response.status === 429) {
+          throw new Error('The question service is busy right now. Please wait a minute and try again.');
+        }
+
         throw new Error(
           response.status === 401 || response.status === 403
-            ? 'The questions service rejected the request.'
-            : 'Could not load questions. Please try again.'
+            ? `Authentication failed: ${detail}`
+            : `Server error (${response.status}): ${detail}`
         );
       }
 
-      const data = await response.json();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('[CBT Frontend] Failed to parse proxy JSON:', parseError);
+        throw new Error('Invalid response from server', { cause: parseError });
+      }
+
+      console.log('[CBT Frontend] Parsed data:', data);
+
       if (!data?.data) {
         throw new Error('No questions were returned for this selection. Choose another year or try again.');
       }
@@ -162,16 +214,10 @@ export default function CBTSimulator({ onClose }) {
       const rawQuestions = Array.isArray(data.data) ? data.data : [data.data];
 
       const formattedQuestions = rawQuestions
-        .map((question, index) => ({
-          id: question.id || 'question-' + index,
-          section: formatMathText(question.section || question.passage),
-          instruction: formatMathText(question.instruction),
-          question: formatMathText(question.question),
-          options: normalizeOptions(question),
-          answer: normalizeAnswer(question.answer),
-          explanation: formatMathText(question.solution || 'No explanation provided.')
-        }))
-        .filter((question) => question.question && Object.keys(question.options).length > 0);
+        .map((question, index) => normalizeQuestion(question, index))
+        .filter((question) => question.question && Object.keys(question.options).length > 0)
+        // The upstream API sometimes returns a full page regardless of `count`.
+        .slice(0, count);
 
       if (formattedQuestions.length === 0) {
         throw new Error('No usable questions were returned for this selection. Choose another year or try again.');
@@ -180,7 +226,7 @@ export default function CBTSimulator({ onClose }) {
       setQuestions(formattedQuestions);
     } catch (requestError) {
       console.error('Failed to fetch questions:', requestError);
-      setError(requestError.message || 'Unable to load questions. Please try again.');
+      setError(requestError.message || 'Unable to load questions. Please check the browser console for details.');
     } finally {
       setLoading(false);
     }
@@ -204,6 +250,11 @@ export default function CBTSimulator({ onClose }) {
   );
   const percentage = questions.length ? Math.round((score / questions.length) * 100) : 0;
   const currentQuestion = questions[currentIdx];
+
+  // Availability also introduces years newer than the built-in list (e.g. 2026).
+  const yearOptions = yearAvailability
+    ? [...new Set([...YEARS, ...Object.keys(yearAvailability).map(Number)])].sort((a, b) => b - a)
+    : YEARS;
 
   return (
     <div
@@ -239,7 +290,7 @@ export default function CBTSimulator({ onClose }) {
                 <button
                   key={subject}
                   type="button"
-                  onClick={() => setSelectedSubject(subject)}
+                  onClick={() => handleSubjectSelect(subject)}
                   className="truncate rounded-xl border border-neutral-700 bg-neutral-800 p-3 text-sm font-bold text-yellow-400 transition-all hover:border-yellow-500 sm:text-base"
                 >
                   {subject}
@@ -250,22 +301,50 @@ export default function CBTSimulator({ onClose }) {
         ) : !selectedYear ? (
           <div className="overflow-y-auto py-4 pr-1 text-center sm:py-6">
             <h4 className="mb-2 text-lg font-semibold sm:text-xl">Select Exam Year</h4>
-            <p className="mb-4 text-xs text-neutral-400 sm:text-sm">
+            <p className="mb-1 text-xs text-neutral-400 sm:text-sm">
               Choose the past question year for <span className="font-bold text-yellow-500">{selectedSubject}</span>:
             </p>
+            <p className="mb-4 h-4 text-[11px] text-neutral-500 sm:text-xs">
+              {yearsLoading ? 'Checking which years have questions…' : ''}
+              {yearAvailability && !yearOptions.some((year) => (yearAvailability[year] ?? 0) > 0)
+                ? 'No questions are available for this subject yet.'
+                : ''}
+            </p>
             <div className="mx-auto grid max-h-[50vh] max-w-lg grid-cols-3 gap-2.5 overflow-y-auto p-1 sm:grid-cols-4">
-              {YEARS.map((year) => (
-                <button
-                  key={year}
-                  type="button"
-                  onClick={() => setSelectedYear(year)}
-                  className="rounded-xl border border-neutral-700 bg-neutral-800 p-3 text-sm font-bold text-yellow-400 transition-all hover:border-yellow-500 sm:text-base"
-                >
-                  {year}
-                </button>
-              ))}
+              {yearOptions.map((year) => {
+                const available = yearAvailability ? yearAvailability[year] ?? 0 : null;
+                const isUnavailable = available === 0;
+
+                return (
+                  <button
+                    key={year}
+                    type="button"
+                    disabled={isUnavailable}
+                    title={isUnavailable ? `No JAMB questions for ${year} yet` : undefined}
+                    onClick={() => setSelectedYear(year)}
+                    className={[
+                      'rounded-xl border p-3 text-sm font-bold transition-all sm:text-base',
+                      isUnavailable
+                        ? 'cursor-not-allowed border-neutral-800 bg-neutral-800/40 text-neutral-600'
+                        : 'border-neutral-700 bg-neutral-800 text-yellow-400 hover:border-yellow-500'
+                    ].join(' ')}
+                  >
+                    {year}
+                    {available != null && (
+                      <span
+                        className={[
+                          'mt-0.5 block text-[10px] font-normal',
+                          isUnavailable ? 'text-neutral-600' : 'text-neutral-400'
+                        ].join(' ')}
+                      >
+                        {isUnavailable ? 'None yet' : `${available} Qs`}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-            <button type="button" onClick={() => setSelectedSubject(null)} className="mt-6 text-xs text-neutral-400 underline hover:text-white">
+            <button type="button" onClick={handleBackToSubjects} className="mt-6 text-xs text-neutral-400 underline hover:text-white">
               ← Back to Subjects
             </button>
           </div>
@@ -425,3 +504,5 @@ export default function CBTSimulator({ onClose }) {
     </div>
   );
 }
+
+
