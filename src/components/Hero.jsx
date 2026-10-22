@@ -43,7 +43,7 @@ export default function Hero() {
             <a 
              href="../../download/Legit-tutors.apk"
 
-              target="_blank" 
+               target="_blank" 
               rel="noopener noreferrer"
               download="Legit-tutors.apk"
               className="bg-green-500 hover:bg-green-600 text-white font-bold px-8 py-3 rounded-lg transition-all shadow-lg flex items-center gap-2"
