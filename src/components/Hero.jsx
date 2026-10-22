@@ -41,9 +41,10 @@ export default function Hero() {
           
           {!Capacitor.isNativePlatform() && (
             <a 
-              href="https://docs.google.com/uc?export=download&id=1YZeXMV6k4gQTcAX4L3vyuldCyHVaIKB0"
-              target="_blank"
+              href="download\Legit-tutors.ap"
+              target="_blank" 
               rel="noopener noreferrer"
+              download="Legit-tutors.apk"
               className="bg-green-500 hover:bg-green-600 text-white font-bold px-8 py-3 rounded-lg transition-all shadow-lg flex items-center gap-2"
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
