@@ -41,7 +41,8 @@ export default function Hero() {
           
           {!Capacitor.isNativePlatform() && (
             <a 
-              href="download\Legit-tutors.ap"
+             href="../../download/Legit-tutors.apk"
+
               target="_blank" 
               rel="noopener noreferrer"
               download="Legit-tutors.apk"
